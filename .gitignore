@@ -28,6 +28,7 @@ tmp/
 # Project build
 frostnews2mqtt
 *templ.go
+dist
 
 # Config files
 config.yml
