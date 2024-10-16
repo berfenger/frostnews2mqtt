@@ -10,7 +10,8 @@ env:
   - PACKAGE_PATH=github.com/berfenger/frostnews2mqtt/cmd
 
 builds:
-- binary: "{{ .ProjectName }}"
+- id: fro-build
+  binary: frostnews2mqtt
   main: ./cmd/api
   goos:
   - darwin
@@ -46,7 +47,9 @@ checksum:
   name_template: 'checksums.txt'
 
 kos:
-  - repository: ghcr.io/berfenger/frostnews2mqtt
+  - id: ghcr-publish
+    build: fro-build
+    repository: ghcr.io/berfenger/frostnews2mqtt
     tags:
       - "{{.Tag}}"
       - "{{.Version}}"
@@ -54,6 +57,15 @@ kos:
     bare: true
     preserve_import_paths: false
     platforms:
-      - linux/amd64
-      - linux/arm64
-      - linux/arm/v6
+      - all
+  - id: hub-publish
+    build: fro-build
+    repository: acasal/frostnews2mqtt
+    tags:
+      - "{{.Tag}}"
+      - "{{.Version}}"
+      - latest
+    bare: true
+    preserve_import_paths: false
+    platforms:
+      - all
