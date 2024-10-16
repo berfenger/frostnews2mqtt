@@ -51,7 +51,6 @@ kos:
     build: fro-build
     repository: ghcr.io/berfenger/frostnews2mqtt
     tags:
-      - "{{.Tag}}"
       - "{{.Version}}"
       - latest
     bare: true
@@ -62,7 +61,6 @@ kos:
     build: fro-build
     repository: acasal/frostnews2mqtt
     tags:
-      - "{{.Tag}}"
       - "{{.Version}}"
       - latest
     bare: true
