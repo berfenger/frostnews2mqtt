@@ -1,10 +1,27 @@
-# Project frostnews2mqtt
+# Frostnews2MQTT - Fronius Inverter Bridge 2 MQTT
 
-One Paragraph of project description goes here
+### Features
+- Monitor power flow with a selectable polling rate.
+- Control battery charge:
+  - Force battery charge from the grid.
+  - Hold energy (don't discharge the battery).
+- Implements HomeAssistant discovery for an easy integration with Home Assistant.
 
-## Getting Started
+### Connection
+This software uses Modbus TCP to connect to solar inverters. Tested with Fronius inverters, but should be compatible with any inverter that implements SunSpec through Modbus TCP.
 
-These instructions will get you a copy of the project up and running on your local machine for development and testing purposes. See deployment for notes on how to deploy the project on a live system.
+The following Sunspec models are required:
+- 1: common
+- 101-103: inverter
+- 122: status
+- 123: controls (optional, needed for feed-in control)
+- 124: storage (optional, needed for battery [dis]charge control)
+- 160: mppt
+- 201-204: ac_meter
+
+### Tested devices
+Fronius Primo GEN24 4.0 Plus + BYD Battery-Box Premium HVS + Fronius Smart Meter
+Fronius Primo SnapINverter 3.0 + Fronius Smart Meter
 
 ## MakeFile
 
