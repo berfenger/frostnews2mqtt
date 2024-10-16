@@ -1,0 +1,21 @@
+mqtt:
+  host: localhost
+  port: 1883
+  username:
+  password:
+  base_topic: frostnews11
+  ha_discovery_enable: true
+  #ha_discovery_topic: homeassistant
+
+inverter_modbus_tcp:
+  host: 192.168.1.4
+  port: 502
+  meter_id: 200
+  inverter_id: 0
+  ignore_fronius: false
+
+power_flow_poll_interval_millis: 5000
+track_house_power: true
+max_import_power: 4000
+battery_control_revert_timeout_seconds: 30
+feedin_control_revert_timeout_seconds: 30
