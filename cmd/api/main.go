@@ -99,6 +99,11 @@ func main() {
 
 func initConfig() (*config.Config, error) {
 
+	// alias PORT => FROSTNEWS_PORT
+	if port := os.Getenv("PORT"); port != "" {
+		os.Setenv("FROSTNEWS_PORT", port)
+	}
+
 	setConfigDefaults()
 
 	viper.SetEnvPrefix("frostnews")
