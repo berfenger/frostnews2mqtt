@@ -44,3 +44,16 @@ archives:
 
 checksum:
   name_template: 'checksums.txt'
+
+kos:
+  - repository: ghcr.io/berfenger/frostnews2mqtt
+    tags:
+      - "{{.Tag}}"
+      - "{{.Version}}"
+      - latest
+    bare: true
+    preserve_import_paths: false
+    platforms:
+      - linux/amd64
+      - linux/arm64
+      - linux/arm/v6
