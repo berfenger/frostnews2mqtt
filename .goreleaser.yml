@@ -53,30 +53,36 @@ dockers:
       - api-build
     image_templates:
       - "acasal/frostnews2mqtt:{{ .Version }}-amd64"
+      - "ghcr.io/berfenger/frostnews2mqtt:{{ .Version }}-amd64"
     use: buildx
     build_flag_templates:
       - "--pull"
       - "--platform=linux/amd64"
     goarch: amd64
+    skip_push: true
   - ids:
       - api-build
     image_templates:
       - "acasal/frostnews2mqtt:{{ .Version }}-arm64"
+      - "ghcr.io/berfenger/frostnews2mqtt:{{ .Version }}-arm64"
     use: buildx
     build_flag_templates:
       - "--pull"
       - "--platform=linux/arm64"
     goarch: arm64
+    skip_push: true
   - ids:
       - api-build
     image_templates:
       - "acasal/frostnews2mqtt:{{ .Version }}-armv7"
+      - "ghcr.io/berfenger/frostnews2mqtt:{{ .Version }}-armv7"
     use: buildx
     build_flag_templates:
       - "--pull"
       - "--platform=linux/arm/v7"
     goarch: arm
     goarm: 7
+    skip_push: true
 
 docker_manifests:
   - name_template: "acasal/frostnews2mqtt:latest"
