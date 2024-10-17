@@ -90,19 +90,35 @@ docker_manifests:
       - "acasal/frostnews2mqtt:{{ .Version }}-amd64"
       - "acasal/frostnews2mqtt:{{ .Version }}-arm64"
       - "acasal/frostnews2mqtt:{{ .Version }}-armv7"
+    create_flags:
+      - --insecure
+    push_flags:
+      - --insecure
   - name_template: "acasal/frostnews2mqtt:{{ .Version }}"
     image_templates:
       - "acasal/frostnews2mqtt:{{ .Version }}-amd64"
       - "acasal/frostnews2mqtt:{{ .Version }}-arm64"
       - "acasal/frostnews2mqtt:{{ .Version }}-armv7"
+    create_flags:
+      - --insecure
+    push_flags:
+      - --insecure
   - name_template: "ghcr.io/berfenger/frostnews2mqtt:latest"
     image_templates:
       - "ghcr.io/berfenger/frostnews2mqtt:{{ .Version }}-amd64"
       - "ghcr.io/berfenger/frostnews2mqtt:{{ .Version }}-arm64"
       - "ghcr.io/berfenger/frostnews2mqtt:{{ .Version }}-armv7"
+    create_flags:
+      - --insecure
+    push_flags:
+      - --insecure
   - name_template: "ghcr.io/berfenger/frostnews2mqtt:{{ .Version }}"
     image_templates:
       - "ghcr.io/berfenger/frostnews2mqtt:{{ .Version }}-amd64"
       - "ghcr.io/berfenger/frostnews2mqtt:{{ .Version }}-arm64"
       - "ghcr.io/berfenger/frostnews2mqtt:{{ .Version }}-armv7"
+    create_flags:
+      - --insecure
+    push_flags:
+      - --insecure
 
