@@ -101,7 +101,6 @@ dockers:
       - "--platform=linux/arm/v7"
     goarch: arm
     goarm: 7
-    skip_push: true
 
 docker_manifests:
   - name_template: "acasal/frostnews2mqtt:latest"
