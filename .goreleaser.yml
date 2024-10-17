@@ -55,6 +55,8 @@ kos:
       - latest
     bare: true
     preserve_import_paths: false
+    env:
+      - PORT=8080
     platforms:
       - all
   - id: hub-publish
@@ -65,5 +67,7 @@ kos:
       - latest
     bare: true
     preserve_import_paths: false
+    env:
+      - PORT=8080
     platforms:
       - all
