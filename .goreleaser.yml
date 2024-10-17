@@ -10,21 +10,23 @@ env:
   - PACKAGE_PATH=github.com/berfenger/frostnews2mqtt/cmd
 
 builds:
-- id: fro-build
+- id: api-build
   binary: frostnews2mqtt
   main: ./cmd/api
   goos:
-  - darwin
-  - linux
-  - windows
+    - darwin
+    - linux
+    - windows
   goarch:
-  - amd64
-  - arm64
-  - arm
+    - amd64
+    - arm64
+    - arm
+  goarm:
+    - 7
   env:
-  - CGO_ENABLED=0
+    - CGO_ENABLED=0
   ldflags:
-  - -s -w -X {{.Env.PACKAGE_PATH}}={{.Version}}
+    - -s -w -X {{.Env.PACKAGE_PATH}}={{.Version}}
 release:
   prerelease: auto
 
@@ -46,28 +48,55 @@ archives:
 checksum:
   name_template: 'checksums.txt'
 
-kos:
-  - id: ghcr-publish
-    build: fro-build
-    repository: ghcr.io/berfenger/frostnews2mqtt
-    tags:
-      - "{{.Version}}"
-      - latest
-    bare: true
-    preserve_import_paths: false
-    env:
-      - PORT=8080
-    platforms:
-      - all
-  - id: hub-publish
-    build: fro-build
-    repository: acasal/frostnews2mqtt
-    tags:
-      - "{{.Version}}"
-      - latest
-    bare: true
-    preserve_import_paths: false
-    env:
-      - PORT=8080
-    platforms:
-      - all
+dockers:
+  - ids:
+      - api-build
+    image_templates:
+      - "acasal/frostnews2mqtt:{{ .Version }}-amd64"
+    use: buildx
+    build_flag_templates:
+      - "--pull"
+      - "--platform=linux/amd64"
+    goarch: amd64
+  - ids:
+      - api-build
+    image_templates:
+      - "acasal/frostnews2mqtt:{{ .Version }}-arm64"
+    use: buildx
+    build_flag_templates:
+      - "--pull"
+      - "--platform=linux/arm64"
+    goarch: arm64
+  - ids:
+      - api-build
+    image_templates:
+      - "acasal/frostnews2mqtt:{{ .Version }}-armv7"
+    use: buildx
+    build_flag_templates:
+      - "--pull"
+      - "--platform=linux/arm/v7"
+    goarch: arm
+    goarm: 7
+
+docker_manifests:
+  - name_template: "acasal/frostnews2mqtt:latest"
+    image_templates:
+      - "acasal/frostnews2mqtt:{{ .Version }}-amd64"
+      - "acasal/frostnews2mqtt:{{ .Version }}-arm64"
+      - "acasal/frostnews2mqtt:{{ .Version }}-armv7"
+  - name_template: "acasal/frostnews2mqtt:{{ .Version }}"
+    image_templates:
+      - "acasal/frostnews2mqtt:{{ .Version }}-amd64"
+      - "acasal/frostnews2mqtt:{{ .Version }}-arm64"
+      - "acasal/frostnews2mqtt:{{ .Version }}-armv7"
+  - name_template: "ghcr.io/berfenger/frostnews2mqtt:latest"
+    image_templates:
+      - "acasal/frostnews2mqtt:{{ .Version }}-amd64"
+      - "acasal/frostnews2mqtt:{{ .Version }}-arm64"
+      - "acasal/frostnews2mqtt:{{ .Version }}-armv7"
+  - name_template: "ghcr.io/berfenger/frostnews2mqtt:{{ .Version }}"
+    image_templates:
+      - "acasal/frostnews2mqtt:{{ .Version }}-amd64"
+      - "acasal/frostnews2mqtt:{{ .Version }}-arm64"
+      - "acasal/frostnews2mqtt:{{ .Version }}-armv7"
+
