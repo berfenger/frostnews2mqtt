@@ -52,33 +52,52 @@ dockers:
   - ids:
       - api-build
     image_templates:
-      - "acasal/frostnews2mqtt:{{ .Version }}-amd64"
-      - "ghcr.io/berfenger/frostnews2mqtt:{{ .Version }}-amd64"
+      - &amd_image "acasal/frostnews2mqtt:{{ .Version }}-amd64"
+      - &g_amd_image "ghcr.io/berfenger/frostnews2mqtt:{{ .Version }}-amd64"
     use: buildx
     build_flag_templates:
       - "--pull"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--label=org.opencontainers.image.source=https://github.com/berfenger/frostnews2mqtt"
+      - "--label=org.opencontainers.image.url=https://github.com/berfenger/frostnews2mqtt"
+      - "--label=org.opencontainers.image.licenses=Apache 2.0"
       - "--platform=linux/amd64"
     goarch: amd64
-    skip_push: true
   - ids:
       - api-build
     image_templates:
-      - "acasal/frostnews2mqtt:{{ .Version }}-arm64"
-      - "ghcr.io/berfenger/frostnews2mqtt:{{ .Version }}-arm64"
+      - &arm64_image "acasal/frostnews2mqtt:{{ .Version }}-arm64"
+      - &g_arm64_image "ghcr.io/berfenger/frostnews2mqtt:{{ .Version }}-arm64"
     use: buildx
     build_flag_templates:
       - "--pull"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--label=org.opencontainers.image.source=https://github.com/berfenger/frostnews2mqtt"
+      - "--label=org.opencontainers.image.url=https://github.com/berfenger/frostnews2mqtt"
+      - "--label=org.opencontainers.image.licenses=Apache 2.0"
       - "--platform=linux/arm64"
     goarch: arm64
-    skip_push: true
   - ids:
       - api-build
     image_templates:
-      - "acasal/frostnews2mqtt:{{ .Version }}-armv7"
-      - "ghcr.io/berfenger/frostnews2mqtt:{{ .Version }}-armv7"
+      - &armv7_image "acasal/frostnews2mqtt:{{ .Version }}-armv7"
+      - &g_armv7_image "ghcr.io/berfenger/frostnews2mqtt:{{ .Version }}-armv7"
     use: buildx
     build_flag_templates:
       - "--pull"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--label=org.opencontainers.image.source=https://github.com/berfenger/frostnews2mqtt"
+      - "--label=org.opencontainers.image.url=https://github.com/berfenger/frostnews2mqtt"
+      - "--label=org.opencontainers.image.licenses=Apache 2.0"
       - "--platform=linux/arm/v7"
     goarch: arm
     goarm: 7
@@ -87,36 +106,36 @@ dockers:
 docker_manifests:
   - name_template: "acasal/frostnews2mqtt:latest"
     image_templates:
-      - "acasal/frostnews2mqtt:{{ .Version }}-amd64"
-      - "acasal/frostnews2mqtt:{{ .Version }}-arm64"
-      - "acasal/frostnews2mqtt:{{ .Version }}-armv7"
+      - *amd_image
+      - *arm64_image
+      - *armv7_image
     create_flags:
       - --insecure
     push_flags:
       - --insecure
   - name_template: "acasal/frostnews2mqtt:{{ .Version }}"
     image_templates:
-      - "acasal/frostnews2mqtt:{{ .Version }}-amd64"
-      - "acasal/frostnews2mqtt:{{ .Version }}-arm64"
-      - "acasal/frostnews2mqtt:{{ .Version }}-armv7"
+      - *amd_image
+      - *arm64_image
+      - *armv7_image
     create_flags:
       - --insecure
     push_flags:
       - --insecure
   - name_template: "ghcr.io/berfenger/frostnews2mqtt:latest"
     image_templates:
-      - "ghcr.io/berfenger/frostnews2mqtt:{{ .Version }}-amd64"
-      - "ghcr.io/berfenger/frostnews2mqtt:{{ .Version }}-arm64"
-      - "ghcr.io/berfenger/frostnews2mqtt:{{ .Version }}-armv7"
+      - *g_amd_image
+      - *g_arm64_image
+      - *g_armv7_image
     create_flags:
       - --insecure
     push_flags:
       - --insecure
   - name_template: "ghcr.io/berfenger/frostnews2mqtt:{{ .Version }}"
     image_templates:
-      - "ghcr.io/berfenger/frostnews2mqtt:{{ .Version }}-amd64"
-      - "ghcr.io/berfenger/frostnews2mqtt:{{ .Version }}-arm64"
-      - "ghcr.io/berfenger/frostnews2mqtt:{{ .Version }}-armv7"
+      - *g_amd_image
+      - *g_arm64_image
+      - *g_armv7_image
     create_flags:
       - --insecure
     push_flags:
