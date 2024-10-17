@@ -97,12 +97,12 @@ docker_manifests:
       - "acasal/frostnews2mqtt:{{ .Version }}-armv7"
   - name_template: "ghcr.io/berfenger/frostnews2mqtt:latest"
     image_templates:
-      - "acasal/frostnews2mqtt:{{ .Version }}-amd64"
-      - "acasal/frostnews2mqtt:{{ .Version }}-arm64"
-      - "acasal/frostnews2mqtt:{{ .Version }}-armv7"
+      - "ghcr.io/berfenger/frostnews2mqtt:{{ .Version }}-amd64"
+      - "ghcr.io/berfenger/frostnews2mqtt:{{ .Version }}-arm64"
+      - "ghcr.io/berfenger/frostnews2mqtt:{{ .Version }}-armv7"
   - name_template: "ghcr.io/berfenger/frostnews2mqtt:{{ .Version }}"
     image_templates:
-      - "acasal/frostnews2mqtt:{{ .Version }}-amd64"
-      - "acasal/frostnews2mqtt:{{ .Version }}-arm64"
-      - "acasal/frostnews2mqtt:{{ .Version }}-armv7"
+      - "ghcr.io/berfenger/frostnews2mqtt:{{ .Version }}-amd64"
+      - "ghcr.io/berfenger/frostnews2mqtt:{{ .Version }}-arm64"
+      - "ghcr.io/berfenger/frostnews2mqtt:{{ .Version }}-armv7"
 
