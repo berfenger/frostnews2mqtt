@@ -16,7 +16,8 @@ import (
 )
 
 const (
-	BATTERY_CONTROL_ACTOR_ID = "battery_control"
+	BATTERY_CONTROL_ACTOR_ID     = "battery_control"
+	POWER_IMPORT_SAFETY_MARGIN_W = 200
 )
 
 type BatteryControlActor struct {
@@ -108,7 +109,7 @@ func (state *BatteryControlActor) DefaultReceive(ctx actor.Context) {
 		case events.BatteryControlCharge:
 			state.logger.Debug("battery_control@default: cmd charge", "on", cmd.On)
 			if cmd.On {
-				changed := state.currentControlState.setForceCharge(uint32(state.config.MaxImportPower) / 2)
+				changed := state.currentControlState.setForceCharge(-1)
 				if changed {
 					state.sendControlRequestAndTransition(ctx)
 				}
@@ -191,7 +192,7 @@ func (state *BatteryControlActor) ControlReceive(ctx actor.Context) {
 			state.logger.Debug("battery_control@control: cmd charge", "on", cmd.On)
 			var changed = false
 			if cmd.On {
-				changed = state.currentControlState.setForceCharge(uint32(state.config.MaxImportPower) / 2)
+				changed = state.currentControlState.setForceCharge(-1)
 			} else {
 				changed = state.currentControlState.disableForceCharge()
 			}
@@ -218,12 +219,33 @@ func (state *BatteryControlActor) ControlReceivePowerFlowReceive(ctx actor.Conte
 				ctx.Send(ctx.Self(), events.BatteryControlCharge{On: false})
 				state.behavior.Become(state.ControlReceive)
 			} else {
-				// adjust charge power
-				var newPowerValue = float64(state.currentControlState.getChargePower())
-				newPowerValue += math.Min(float64(state.maxImportPower)*0.2, float64(state.maxImportPower)-200-msg.ACMeterPowerFlow.CurrentImportPowerWatt)
+				var prevPowerValue = state.currentControlState.getChargePower()
+				var newPowerValue float64 = float64(prevPowerValue)
+				if prevPowerValue == -1 {
+					// temp disable, check if should be restarted
+					houseConsumption := msg.InverterPowerFlow.ACPowerWatt + msg.ACMeterPowerFlow.CurrentPowerFlowWatt
+					availablePower := float64(state.maxImportPower) - houseConsumption - POWER_IMPORT_SAFETY_MARGIN_W
+					if availablePower > float64(state.maxImportPower)*0.33 {
+						newPowerValue = float64(state.maxImportPower) * 0.2
+					} else {
+						newPowerValue = -1
+					}
+				} else {
+					// adjust charge power
+					availablePower := float64(state.maxImportPower) - msg.ACMeterPowerFlow.CurrentImportPowerWatt - POWER_IMPORT_SAFETY_MARGIN_W
+					newPowerValue += math.Min(float64(state.maxImportPower)*0.2, availablePower)
+				}
+
+				// check bounds
+				// max value
 				newPowerValue = math.Min(float64(msg.StorageState.MaxCapacityWatt), newPowerValue)
+				// min value
+				// if negative, temp disable
+				if newPowerValue < 0 {
+					newPowerValue = -1
+				}
 				state.logger.Debug("battery_control@controlCharge: set new charge power", "power", newPowerValue)
-				state.currentControlState.setForceCharge(uint32(newPowerValue))
+				state.currentControlState.setForceCharge(int32(newPowerValue))
 				state.sendControlRequestAndTransition(ctx)
 			}
 		} else if state.currentControlState.isHoldOn() {
@@ -307,6 +329,7 @@ func (state *BatteryControlActor) updateChargeTargetSoC(targetSoC uint8) {
 type storageControlState struct {
 	params    sunspec_modbus.StorageControlParams
 	hold      bool
+	charge    bool
 	targetSoC uint8
 }
 
@@ -315,13 +338,14 @@ func (s *storageControlState) isHoldOn() bool {
 }
 
 func (s *storageControlState) isChargeOn() bool {
-	return s.params.MinChargePowerWatt > 0
+	return s.params.MinChargePowerWatt > 0 || s.charge
 }
 
-func (s *storageControlState) setForceCharge(power uint32) bool {
+func (s *storageControlState) setForceCharge(power int32) bool {
 	prev := s.isChargeOn()
+	s.charge = true
 	s.params.MaxDischargePowerWatt = -1
-	s.params.MinChargePowerWatt = int32(power)
+	s.params.MinChargePowerWatt = power
 	return !prev
 }
 
@@ -338,6 +362,7 @@ func (s *storageControlState) setHold() bool {
 
 func (s *storageControlState) disableForceCharge() bool {
 	prev := s.isChargeOn()
+	s.charge = false
 	s.params.MinChargePowerWatt = -1
 	if s.hold {
 		s.params.MaxDischargePowerWatt = 0
@@ -357,10 +382,10 @@ func (s *storageControlState) disableHold() bool {
 	}
 }
 
-func (s *storageControlState) revertSeconds() int {
-	return int(s.params.RevertTimeSeconds)
+func (s *storageControlState) revertSeconds() int32 {
+	return int32(s.params.RevertTimeSeconds)
 }
 
-func (s *storageControlState) getChargePower() uint32 {
-	return uint32(s.params.MinChargePowerWatt)
+func (s *storageControlState) getChargePower() int32 {
+	return s.params.MinChargePowerWatt
 }

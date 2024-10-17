@@ -258,7 +258,8 @@ func (a *ModbusActor) getInverterStorageState() (*GetStorageStateResponse, error
 
 func (a *ModbusActor) getStorageControlPowerFlow() (*GetStorageControlPowerFlowResponse, error) {
 	var state *sunspec_modbus.StorageState
-	var flow *sunspec_modbus.ACMeterPowerFlow
+	var meterFlow *sunspec_modbus.ACMeterPowerFlow
+	var invFlow *sunspec_modbus.InverterPowerFlow
 	var err error
 
 	if a.inverter != nil {
@@ -267,17 +268,23 @@ func (a *ModbusActor) getStorageControlPowerFlow() (*GetStorageControlPowerFlowR
 			logger.Error(err)
 			return nil, err
 		}
+		invFlow, err = a.inverter.GetPowerFlow()
+		if err != nil {
+			logger.Error(err)
+			return nil, err
+		}
 	}
 	if a.acMeter != nil {
-		flow, err = a.acMeter.GetPowerFlow()
+		meterFlow, err = a.acMeter.GetPowerFlow()
 		if err != nil {
 			logger.Error(err)
 			return nil, err
 		}
 	}
 	return &GetStorageControlPowerFlowResponse{
-		StorageState:     state,
-		ACMeterPowerFlow: flow,
+		StorageState:      state,
+		ACMeterPowerFlow:  meterFlow,
+		InverterPowerFlow: invFlow,
 	}, nil
 }
 

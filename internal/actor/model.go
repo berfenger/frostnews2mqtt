@@ -44,8 +44,9 @@ type GetStorageControlPowerFlowRequest struct {
 }
 
 type GetStorageControlPowerFlowResponse struct {
-	StorageState     *sunspec_modbus.StorageState
-	ACMeterPowerFlow *sunspec_modbus.ACMeterPowerFlow
+	StorageState      *sunspec_modbus.StorageState
+	ACMeterPowerFlow  *sunspec_modbus.ACMeterPowerFlow
+	InverterPowerFlow *sunspec_modbus.InverterPowerFlow
 }
 
 type CommandErrorResponse struct {
