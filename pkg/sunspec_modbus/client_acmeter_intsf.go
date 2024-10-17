@@ -221,5 +221,5 @@ func (inv *ACMeterIntSFModbusReader) survey() error {
 		inv.blocks = blocks
 		return nil
 	}
-	return errors.New("could not find all modbus blocks")
+	return errors.New("could not find all required sunspec blocks (common, ac_meter)")
 }

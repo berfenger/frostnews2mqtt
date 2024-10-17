@@ -39,7 +39,7 @@ func (inv *InverterIntSFModbusReader) survey() error {
 		return err
 	}
 	if str != "SunS" {
-		return errors.New("could not find a SunSpec smart meter")
+		return errors.New("could not find a SunSpec inverter")
 	}
 
 	// survey blocks
@@ -83,7 +83,7 @@ func (inv *InverterIntSFModbusReader) survey() error {
 		inv.blocks = blocks
 		return nil
 	}
-	return errors.New("could not find all modbus blocks")
+	return errors.New("could not find all required sunspec blocks (common, inverter, status, mppt)")
 }
 
 // common
