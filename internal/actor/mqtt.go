@@ -135,7 +135,7 @@ func (state *MQTTActor) StartingReceive(ctx actor.Context) {
 	case *actor.Restarting:
 		state.stop()
 	default:
-		state.logger.Trace("mqtt@starting stash", "type", fmt.Sprintf("%T", msg))
+		state.logger.Tracef("mqtt@starting stash %s", fmt.Sprintf("%T", msg))
 		state.stash.Stash(ctx, msg)
 	}
 }
@@ -155,21 +155,21 @@ func (state *MQTTActor) DefaultReceive(ctx actor.Context) {
 		})
 	case parsedCommand:
 		// route command to parent
-		state.logger.Debug("mqtt@default parsedCommand", "value", fmt.Sprintf("%+v", msg.command))
+		state.logger.Debugf("mqtt@default parsedCommand %+v", msg.command)
 		ctx.Send(ctx.Parent(), msg)
 	case OnEventStreamMessage:
 		// receive message from event bus and publish to MQTT if needed
-		state.logger.Debug("mqtt@default OnEventStreamMessage", "value", fmt.Sprintf("%T", msg.message))
+		state.logger.Tracef("mqtt@default OnEventStreamMessage %s", fmt.Sprintf("%T", msg.message))
 		state.publishSensorValue(ctx, msg.message)
 	case PublishHADiscovery:
 		state.logger.Debug("mqtt@default PublishHADiscovery")
 		state.PublishHomeAssistantDiscovery(ctx, msg.Sensors, msg.Switches, msg.InputNumbers)
 	case MQTTConnectionLost:
 		// if connection lost, stop actor and let supervisor decide
-		state.logger.Debug("mqtt@default connection lost", "error", msg.Error)
+		state.logger.Errorf("mqtt@default connection lost %s", msg.Error)
 		panic(msg.Error)
 	default:
-		state.logger.Trace("mqtt@default stash", "type", fmt.Sprintf("%T", msg))
+		state.logger.Tracef("mqtt@default stash %s", fmt.Sprintf("%T", msg))
 	}
 }
 
@@ -221,7 +221,7 @@ func (state *MQTTActor) event2MQTTMessage(event any) *rawMessage {
 func (state *MQTTActor) publishSensorValue(ctx actor.Context, event any) {
 	msg := state.event2MQTTMessage(event)
 	if msg != nil {
-		state.logger.Trace("mqtt@publish: sensor publish", "message", msg.message, "topic", msg.topic)
+		state.logger.Tracef("mqtt@publish: sensor publish %s => %s", msg.topic, msg.message)
 		state.client.Publish(msg.topic, msg.message, 1, msg.retain, func(err error) {
 			ctx.Send(ctx.Self(), publishResult{Error: err})
 		}, 5*time.Second)
@@ -234,12 +234,12 @@ func (state *MQTTActor) PublishingReceive(ctx actor.Context) {
 	case publishResult:
 		// log error and return to default state
 		if msg.Error != nil {
-			state.logger.Error("mqtt@publishing could not publish a message", "error", msg.Error)
+			state.logger.Errorf("mqtt@publishing could not publish a message: %s", msg.Error)
 		}
 		state.behavior.UnbecomeStacked()
 		state.stash.UnstashOldest(ctx)
 	default:
-		state.logger.Trace("mqtt@publishing stash", "type", fmt.Sprintf("%T", msg))
+		state.logger.Tracef("mqtt@publishing stash %s", fmt.Sprintf("%T", msg))
 		state.stash.Stash(ctx, msg)
 	}
 }
