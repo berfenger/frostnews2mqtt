@@ -11,7 +11,9 @@ import (
 
 func (s *Server) RegisterRoutes() http.Handler {
 	e := echo.New()
-	e.Use(middleware.Logger())
+	if s.httpLog {
+		e.Use(middleware.Logger())
+	}
 	e.Use(middleware.Recover())
 
 	e.GET("/healthcheck", s.HealthCheckHandler)

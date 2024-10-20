@@ -18,6 +18,7 @@ type Config struct {
 	BatteryControlRevertTimeoutSeconds uint                    `mapstructure:"battery_control_revert_timeout_seconds"`
 	FeedInControlRevertTimeoutSeconds  uint                    `mapstructure:"feedin_control_revert_timeout_seconds"`
 	Port                               uint                    `mapstructure:"port"`
+	HttpLog                            bool                    `mapstructure:"http_log"`
 }
 
 type InverterModbusTCPConfig struct {

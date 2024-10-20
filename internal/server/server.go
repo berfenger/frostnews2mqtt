@@ -12,6 +12,7 @@ import (
 
 type Server struct {
 	port        uint
+	httpLog     bool
 	rootContext *actor.RootContext
 	masterActor *actor.PID
 }
@@ -21,6 +22,7 @@ func NewServer(cfg config.Config, rootContext *actor.RootContext, masterActor *a
 		port:        cfg.Port,
 		rootContext: rootContext,
 		masterActor: masterActor,
+		httpLog:     cfg.HttpLog,
 	}
 
 	// Declare Server config
