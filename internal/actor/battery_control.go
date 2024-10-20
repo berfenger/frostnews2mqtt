@@ -80,7 +80,7 @@ func (state *BatteryControlActor) StartingReceive(ctx actor.Context) {
 		state.behavior.Become(state.WaitingInfoReceive)
 	case *actor.Restarting:
 	default:
-		state.logger.Trace("battery_control@starting: stash", "type", fmt.Sprintf("%T", msg))
+		state.logger.Tracef("battery_control@starting: stash %s", fmt.Sprintf("%T", msg))
 		state.stash.Stash(ctx, msg)
 	}
 }
@@ -98,7 +98,7 @@ func (state *BatteryControlActor) DefaultReceive(ctx actor.Context) {
 	case events.BatteryControlCommand:
 		switch cmd := msg.(type) {
 		case events.BatteryControlHold:
-			state.logger.Debug("battery_control@default: cmd hold", "on", cmd.On)
+			state.logger.Debugf("battery_control@default: cmd hold %t", cmd.On)
 			if cmd.On {
 				changed := state.currentControlState.setHold()
 				if changed {
@@ -107,7 +107,7 @@ func (state *BatteryControlActor) DefaultReceive(ctx actor.Context) {
 				}
 			}
 		case events.BatteryControlCharge:
-			state.logger.Debug("battery_control@default: cmd charge", "on", cmd.On)
+			state.logger.Debugf("battery_control@default: cmd charge %t", cmd.On)
 			if cmd.On {
 				changed := state.currentControlState.setForceCharge(-1)
 				if changed {
@@ -115,11 +115,11 @@ func (state *BatteryControlActor) DefaultReceive(ctx actor.Context) {
 				}
 			}
 		case events.BatteryControlSetTargetSoC:
-			state.logger.Debug("battery_control@default: cmd setTargetSoC", "soc", cmd.TargetSoC)
+			state.logger.Debugf("battery_control@default: cmd setTargetSoC %d", cmd.TargetSoC)
 			state.setChargeTargetSoC(cmd.TargetSoC)
 		}
 	default:
-		state.logger.Trace("battery_control@default: stash", "type", fmt.Sprintf("%T", msg))
+		state.logger.Tracef("battery_control@default: stash %s", fmt.Sprintf("%T", msg))
 		state.stash.Stash(ctx, msg)
 	}
 }
@@ -128,7 +128,7 @@ func (state *BatteryControlActor) DefaultReceive(ctx actor.Context) {
 func (state *BatteryControlActor) ModbusRecvControlReceive(ctx actor.Context) {
 	switch msg := ctx.Message().(type) {
 	case SetStorageControlResponse:
-		state.logger.Debug("battery_control@modbus_recv: SetStorageControlResponse", "response", msg)
+		state.logger.Debugf("battery_control@modbus_recv: SetStorageControlResponse %+v", msg)
 		if msg.Error == "" {
 			state.updateSwitchState(state.currentControlState.isHoldOn(), state.currentControlState.isChargeOn())
 			if state.currentControlState.isHoldOn() || state.currentControlState.isChargeOn() {
@@ -145,7 +145,7 @@ func (state *BatteryControlActor) ModbusRecvControlReceive(ctx actor.Context) {
 			panic(errors.New(msg.Error))
 		}
 	default:
-		state.logger.Trace("battery_control@default: stash", "type", fmt.Sprintf("%T", msg))
+		state.logger.Tracef("battery_control@default: stash %s", fmt.Sprintf("%T", msg))
 		state.stash.Stash(ctx, msg)
 	}
 }
@@ -178,7 +178,7 @@ func (state *BatteryControlActor) ControlReceive(ctx actor.Context) {
 	case events.BatteryControlCommand:
 		switch cmd := msg.(type) {
 		case events.BatteryControlHold:
-			state.logger.Debug("battery_control@control: cmd hold", "on", cmd.On)
+			state.logger.Debugf("battery_control@control: cmd hold %t", cmd.On)
 			var changed = false
 			if cmd.On {
 				changed = state.currentControlState.setHold()
@@ -189,7 +189,7 @@ func (state *BatteryControlActor) ControlReceive(ctx actor.Context) {
 				state.sendControlRequestAndTransition(ctx)
 			}
 		case events.BatteryControlCharge:
-			state.logger.Debug("battery_control@control: cmd charge", "on", cmd.On)
+			state.logger.Debugf("battery_control@control: cmd charge %t", cmd.On)
 			var changed = false
 			if cmd.On {
 				changed = state.currentControlState.setForceCharge(-1)
@@ -200,11 +200,11 @@ func (state *BatteryControlActor) ControlReceive(ctx actor.Context) {
 				state.sendControlRequestAndTransition(ctx)
 			}
 		case events.BatteryControlSetTargetSoC:
-			state.logger.Debug("battery_control@control: cmd setTargetSoC", "soc", cmd.TargetSoC)
+			state.logger.Debugf("battery_control@control: cmd setTargetSoC %d", cmd.TargetSoC)
 			state.setChargeTargetSoC(cmd.TargetSoC)
 		}
 	default:
-		state.logger.Trace("battery_control@control: stash", "type", fmt.Sprintf("%T", msg))
+		state.logger.Tracef("battery_control@control: stash %s", fmt.Sprintf("%T", msg))
 		state.stash.Stash(ctx, msg)
 	}
 }
@@ -214,9 +214,10 @@ func (state *BatteryControlActor) ControlReceivePowerFlowReceive(ctx actor.Conte
 	switch msg := ctx.Message().(type) {
 	case GetStorageControlPowerFlowResponse:
 		if state.currentControlState.isChargeOn() {
-			if msg.StorageState.StateOfCharge > float64(state.currentControlState.targetSoC) {
+			if msg.StorageState.StateOfCharge >= float64(state.currentControlState.targetSoC) {
 				// when battery SoC target is reached, disable force charge
 				ctx.Send(ctx.Self(), events.BatteryControlCharge{On: false})
+				state.logger.Infof("battery_control@controlCharge: charge targetSoC is met. Turning off charging control.")
 				state.behavior.Become(state.ControlReceive)
 			} else {
 				var prevPowerValue = state.currentControlState.getChargePower()
@@ -244,7 +245,7 @@ func (state *BatteryControlActor) ControlReceivePowerFlowReceive(ctx actor.Conte
 				if newPowerValue < 0 {
 					newPowerValue = -1
 				}
-				state.logger.Debug("battery_control@controlCharge: set new charge power", "power", newPowerValue)
+				state.logger.Infof("battery_control@controlCharge: set new charge power %f", newPowerValue)
 				state.currentControlState.setForceCharge(int32(newPowerValue))
 				state.sendControlRequestAndTransition(ctx)
 			}
@@ -252,7 +253,7 @@ func (state *BatteryControlActor) ControlReceivePowerFlowReceive(ctx actor.Conte
 			state.sendControlRequestAndTransition(ctx)
 		}
 	default:
-		state.logger.Trace("battery_control@controlCharge: stash", "type", fmt.Sprintf("%T", msg))
+		state.logger.Tracef("battery_control@controlCharge: stash %s", fmt.Sprintf("%T", msg))
 		state.stash.Stash(ctx, msg)
 	}
 }
@@ -263,7 +264,7 @@ func (state *BatteryControlActor) WaitingInfoReceive(ctx actor.Context) {
 	case GetDevicesInfoResponse:
 		state.logger.Debug("battery_control@waitingInfo GetDevicesInfoResponse")
 		if state.maxImportPower <= 0 {
-			state.logger.Info(fmt.Sprintf("max_import_power not defined. assuming max rated power of inverter = %d", msg.Inverter.MaxRatedPowerWatt))
+			state.logger.Infof("max_import_power not defined. assuming max rated power of inverter = %d", msg.Inverter.MaxRatedPowerWatt)
 			state.maxImportPower = uint32(msg.Inverter.MaxRatedPowerWatt)
 		}
 		if msg.ACMeter != nil && msg.Inverter != nil {
@@ -275,10 +276,10 @@ func (state *BatteryControlActor) WaitingInfoReceive(ctx actor.Context) {
 		}
 		state.stash.UnstashAll(ctx)
 	case CommandErrorResponse:
-		state.logger.Error("battery_control@waitingInfo CommandErrorResponse", "error", msg.Error)
+		state.logger.Errorf("battery_control@waitingInfo CommandErrorResponse: %s", msg.Error)
 		panic(msg.Error)
 	default:
-		state.logger.Trace("battery_control@waitingInfo: stash", "type", fmt.Sprintf("%T", msg))
+		state.logger.Tracef("battery_control@waitingInfo: stash %s", fmt.Sprintf("%T", msg))
 		state.stash.Stash(ctx, msg)
 	}
 }
