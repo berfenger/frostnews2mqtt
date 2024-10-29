@@ -220,6 +220,38 @@ func TestStorageState(t *testing.T) {
 
 }
 
+func TestBatteryControl(t *testing.T) {
+
+	reader := InverterReader()
+
+	err := reader.Open()
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	err = reader.Validate()
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	err = reader.SetStorageControl(StorageControlParams{
+		MinChargePowerWatt: 3000,
+	})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	flow, err := reader.GetPowerFlow()
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	fmt.Printf("Inverter Power Flow: %+v\n", flow)
+
+}
+
 func RealInverterReader() InverterModbusReader {
 	logger := log.New()
 	logger.SetLevel(log.TraceLevel)

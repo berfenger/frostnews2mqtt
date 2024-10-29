@@ -6,13 +6,14 @@ func CreateTestACMeterModbusReader() (ACMeterModbusReader, error) {
 
 func CreateTestInverterModbusReader() (InverterModbusReader, error) {
 
-	return TestInverterModbusReader{}, nil
+	return &TestInverterModbusReader{
+		batteryChargePower: -1,
+	}, nil
 }
 
 // ACMeter
 
-type TestACMeterModbusReader struct {
-}
+type TestACMeterModbusReader struct{}
 
 func (reader TestACMeterModbusReader) Open() error {
 	return nil
@@ -54,6 +55,7 @@ func (reader TestACMeterModbusReader) GetPowerFlow() (*ACMeterPowerFlow, error) 
 // Inverter
 
 type TestInverterModbusReader struct {
+	batteryChargePower int
 }
 
 func (inv TestInverterModbusReader) Open() error {
@@ -97,12 +99,22 @@ func (inv TestInverterModbusReader) GetPowerLimit() (*InverterPowerLimit, error)
 }
 
 func (inv TestInverterModbusReader) GetPowerFlow() (*InverterPowerFlow, error) {
+	houseCons := 600.1
+	charge := 572.45
+	pvpow := 920.3
+	acpow := pvpow - houseCons
+	if inv.batteryChargePower > 0 {
+		charge = float64(inv.batteryChargePower)
+		acpow = pvpow - charge
+	}
+	dcpf := -charge
+
 	return &InverterPowerFlow{
-		ACPowerWatt:               320.2,
-		PVPowerWatt:               920.3,
-		BatteryChargePowerWatt:    572.45,
+		ACPowerWatt:               acpow,
+		PVPowerWatt:               pvpow,
+		BatteryChargePowerWatt:    charge,
 		BatteryDischargePowerWatt: 0,
-		BatteryDCPowerFlowWatt:    -572.45,
+		BatteryDCPowerFlowWatt:    dcpf,
 	}, nil
 }
 
@@ -118,15 +130,17 @@ func (inv TestInverterModbusReader) SetStorageChargeControl(maxDischargeRatePerc
 	return nil
 }
 
-func (inv TestInverterModbusReader) SetStorageControl(params StorageControlParams) error {
+func (inv *TestInverterModbusReader) SetStorageControl(params StorageControlParams) error {
+	inv.batteryChargePower = int(params.MinChargePowerWatt)
 	return nil
 }
 
-func (inv TestInverterModbusReader) DisableStorageControl() error {
-	return inv.SetStorageChargeControl(100, 100, false, false, -1)
+func (inv *TestInverterModbusReader) DisableStorageControl() error {
+	inv.batteryChargePower = -1
+	return nil
 }
 
-func (inv TestInverterModbusReader) SetStorageForceChargePower(watts uint16, revertTimeSeconds int32) error {
+func (inv *TestInverterModbusReader) SetStorageForceChargePower(watts uint16, revertTimeSeconds int32) error {
 
 	return inv.SetStorageControl(StorageControlParams{
 		MinChargePowerWatt:    int32(watts),
@@ -137,7 +151,7 @@ func (inv TestInverterModbusReader) SetStorageForceChargePower(watts uint16, rev
 	})
 }
 
-func (inv TestInverterModbusReader) SetStorageForceDischargePower(watts uint16, revertTimeSeconds int32) error {
+func (inv *TestInverterModbusReader) SetStorageForceDischargePower(watts uint16, revertTimeSeconds int32) error {
 
 	return inv.SetStorageControl(StorageControlParams{
 		MinChargePowerWatt:    -1,

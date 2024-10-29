@@ -24,7 +24,7 @@ func TestMasterActor(t *testing.T) {
 
 	props := actor.PropsFromProducer(func() actor.Actor {
 		return NewMasterOfPuppetsActor(cfg, func() *ModbusActor {
-			return NewModbusActor(sunspec_modbus.TestInverterModbusReader{}, sunspec_modbus.TestACMeterModbusReader{}, logger)
+			return NewModbusActor(&sunspec_modbus.TestInverterModbusReader{}, sunspec_modbus.TestACMeterModbusReader{}, logger)
 		}, func(es *eventstream.EventStream) *MQTTActor {
 			return NewTestMQTTActor(&cfg, es, logger)
 		}, logger)
