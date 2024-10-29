@@ -152,6 +152,7 @@ func (state *MQTTActor) DefaultReceive(ctx actor.Context) {
 		ctx.Respond(ActorHealthResponse{
 			Id:      MQTT_ACTOR_ID,
 			Healthy: true,
+			State:   "idle",
 		})
 	case parsedCommand:
 		// route command to parent

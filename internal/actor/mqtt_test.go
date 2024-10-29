@@ -92,6 +92,7 @@ func (state *MQTTActor) DummyReceive(ctx actor.Context) {
 		ctx.Respond(ActorHealthResponse{
 			Id:      MQTT_ACTOR_ID,
 			Healthy: true,
+			State:   "idle",
 		})
 	case OnEventStreamMessage:
 		// receive message from event bus and publish to MQTT if needed

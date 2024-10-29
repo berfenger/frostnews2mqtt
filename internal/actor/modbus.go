@@ -77,6 +77,7 @@ func (state *ModbusActor) DefaultReceive(ctx actor.Context) {
 		ctx.Respond(ActorHealthResponse{
 			Id:      MODBUS_ACTOR_ID,
 			Healthy: true,
+			State:   "idle",
 		})
 	case GetDevicesInfoRequest:
 		state.logger.Debug("modbus@default: GetDevicesInfoRequest")

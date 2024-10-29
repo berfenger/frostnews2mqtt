@@ -84,6 +84,7 @@ func (state *PowerFlowActor) DefaultReceive(ctx actor.Context) {
 		ctx.Respond(ActorHealthResponse{
 			Id:      POWERFLOW_ACTOR_ID,
 			Healthy: true,
+			State:   "idle",
 		})
 	case powerFlowTick:
 		state.logger.Debug("powerflow@default tick")
