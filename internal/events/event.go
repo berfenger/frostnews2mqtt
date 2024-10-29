@@ -211,19 +211,27 @@ func HousePowerUpdateEvents(invPf *sunspec_modbus.InverterPowerFlow, acMeterPf *
 
 func BatteryControlSwitchesUpdateEvents(controlHold, controlCharge bool) []any {
 	var events []any
-	events = append(events, SwitchSensorUpdateEvent{
+	events = append(events, BatteryControlHoldSwitchUpdateEvents(controlHold))
+	events = append(events, BatteryControlChargeSwitchUpdateEvents(controlCharge))
+	return events
+}
+
+func BatteryControlHoldSwitchUpdateEvents(controlHold bool) any {
+	return SwitchSensorUpdateEvent{
 		GenericSensorUpdateEvent: GenericSensorUpdateEvent{
 			Id: SWITCH_ID_BATTERY_HOLD,
 		},
 		Value: controlHold,
-	})
-	events = append(events, SwitchSensorUpdateEvent{
+	}
+}
+
+func BatteryControlChargeSwitchUpdateEvents(controlCharge bool) any {
+	return SwitchSensorUpdateEvent{
 		GenericSensorUpdateEvent: GenericSensorUpdateEvent{
 			Id: SWITCH_ID_BATTERY_CHARGE,
 		},
 		Value: controlCharge,
-	})
-	return events
+	}
 }
 
 func BatteryControlSetTargetSoCUpdateEvents(value uint8) []any {
