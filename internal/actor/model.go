@@ -59,5 +59,6 @@ type ActorHealthRequest struct {
 type ActorHealthResponse struct {
 	Id      string
 	Healthy bool
+	State   string
 	Error   string
 }
