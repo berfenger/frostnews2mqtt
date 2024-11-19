@@ -1,4 +1,4 @@
-package events
+package domain
 
 import (
 	"crypto/md5"

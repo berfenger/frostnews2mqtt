@@ -4,7 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"frostnews2mqtt/internal/config"
-	"frostnews2mqtt/internal/events"
+	"frostnews2mqtt/internal/core/domain"
+	"frostnews2mqtt/internal/core/events"
+	. "frostnews2mqtt/internal/util/actorutil"
 	"frostnews2mqtt/pkg/sunspec_modbus"
 	"math"
 	"time"
@@ -12,11 +14,10 @@ import (
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/asynkron/protoactor-go/eventstream"
 	"github.com/asynkron/protoactor-go/scheduler"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 )
 
 const (
-	BATTERY_CONTROL_ACTOR_ID     = "battery_control"
 	POWER_IMPORT_SAFETY_MARGIN_W = 200
 )
 
@@ -30,23 +31,23 @@ type BatteryControlActorNew struct {
 	maxImportPower uint32
 	targetSOC      uint8
 
-	logger *logrus.Entry
+	logger *zap.Logger
 }
 
 type batteryControlTick struct {
 }
 
-func NewBatteryControlActor(config *config.Config, modbusActor *actor.PID, eventStream *eventstream.EventStream, logger *logrus.Logger) *BatteryControlActorNew {
+func NewBatteryControlActor(config *config.Config, modbusActor *actor.PID, eventStream *eventstream.EventStream, logger *zap.Logger) *BatteryControlActorNew {
 	act := &BatteryControlActorNew{
 		config:         config,
 		modbusActor:    modbusActor,
 		stash:          &Stash{},
-		logger:         ActorLogger("battery_control", logger),
+		logger:         ActorLogger(domain.ACTOR_ID_BATTERY_CONTROL, logger),
 		eventStream:    eventStream,
 		maxImportPower: uint32(config.MaxImportPower),
 		targetSOC:      100,
 		ActorWithStates: ActorWithStates{
-			behavior: actor.NewBehavior(),
+			Behavior: actor.NewBehavior(),
 		},
 	}
 	act.Become(BCStartingState{
@@ -56,7 +57,7 @@ func NewBatteryControlActor(config *config.Config, modbusActor *actor.PID, event
 }
 
 func (state *BatteryControlActorNew) Receive(context actor.Context) {
-	state.behavior.Receive(context)
+	state.Behavior.Receive(context)
 }
 
 // Starting state
@@ -77,9 +78,11 @@ func (state BCStartingState) Receive(ctx actor.Context) {
 
 		state.actor.scheduler = scheduler.NewTimerScheduler(ctx)
 
-		PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.actor.modbusActor, GetDevicesInfoRequest{}, 1*time.Second), func(err error) any {
-			return CommandErrorResponse{
-				Error: fmt.Sprintf("%s", err),
+		PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.actor.modbusActor, domain.GetDevicesInfoRequest{}, 1*time.Second), func(err error) any {
+			return domain.GetDevicesInfoResponse{
+				ActorResponseMixIn: domain.ActorResponseMixIn{
+					ResponseError: err,
+				},
 			}
 		})
 		state.actor.Become(BCWaitingInfoState{
@@ -87,7 +90,7 @@ func (state BCStartingState) Receive(ctx actor.Context) {
 		})
 	case *actor.Restarting:
 	default:
-		state.actor.logger.Tracef("battery_control@starting: stash %s", fmt.Sprintf("%T", msg))
+		state.actor.logger.Debug("battery_control@starting: stash", zap.String("type", fmt.Sprintf("%T", msg)))
 		state.actor.stash.Stash(ctx, msg)
 	}
 }
@@ -105,11 +108,15 @@ func (state BCWaitingInfoState) Name() string {
 
 func (state BCWaitingInfoState) Receive(ctx actor.Context) {
 	switch msg := ctx.Message().(type) {
-	case GetDevicesInfoResponse:
+	case domain.GetDevicesInfoResponse:
+		if msg.HasResponseError() {
+			state.actor.logger.Error("battery_control@waitingInfo GetDevicesInfoResponse error", zap.Error(msg.GetResponseError()))
+			panic(msg.GetResponseError())
+		}
 		state.actor.logger.Debug("battery_control@waitingInfo GetDevicesInfoResponse")
 		if msg.ACMeter != nil && msg.Inverter != nil {
 			if state.actor.maxImportPower <= 0 {
-				state.actor.logger.Infof("max_import_power not defined. assuming max rated power of inverter = %d", msg.Inverter.MaxRatedPowerWatt)
+				state.actor.logger.Sugar().Infof("max_import_power not defined. assuming max rated power of inverter = %d", msg.Inverter.MaxRatedPowerWatt)
 				state.actor.maxImportPower = uint32(msg.Inverter.MaxRatedPowerWatt)
 			}
 			state.actor.Become(BCIdleState{
@@ -121,11 +128,8 @@ func (state BCWaitingInfoState) Receive(ctx actor.Context) {
 			})
 		}
 		state.actor.stash.UnstashAll(ctx)
-	case CommandErrorResponse:
-		state.actor.logger.Errorf("battery_control@waitingInfo CommandErrorResponse: %s", msg.Error)
-		panic(msg.Error)
 	default:
-		state.actor.logger.Tracef("battery_control@waitingInfo: stash %s", fmt.Sprintf("%T", msg))
+		state.actor.logger.Debug("battery_control@waitingInfo: stash", zap.String("type", fmt.Sprintf("%T", msg)))
 		state.actor.stash.Stash(ctx, msg)
 	}
 }
@@ -143,37 +147,39 @@ func (state BCIdleState) Name() string {
 
 func (state BCIdleState) Receive(ctx actor.Context) {
 	switch msg := ctx.Message().(type) {
-	case ActorHealthRequest:
+	case domain.ActorHealthRequest:
 		state.actor.logger.Debug("battery_control@idle: ActorHealthRequest")
-		ctx.Respond(ActorHealthResponse{
-			Id:      BATTERY_CONTROL_ACTOR_ID,
+		ctx.Respond(domain.ActorHealthResponse{
+			Id:      domain.ACTOR_ID_BATTERY_CONTROL,
 			Healthy: true,
 			State:   state.Name(),
 		})
 	case batteryControlTick:
-	case events.BatteryControlCommand:
+	case domain.BatteryControlRequest:
 		switch cmd := msg.(type) {
-		case events.BatteryControlHold:
-			state.actor.logger.Debugf("battery_control@idle: cmd hold %t", cmd.On)
-			if cmd.On {
+		case domain.BatteryControlHoldRequest:
+			state.actor.logger.Sugar().Debugf("battery_control@idle: cmd hold %t", cmd.Enable)
+			if cmd.Enable {
 				state.actor.Become(NewBCHoldingState(state.actor).OnEnterAction(ctx))
 			}
-		case events.BatteryControlCharge:
-			state.actor.logger.Debugf("battery_control@idle: cmd charge %t", cmd.On)
-			if cmd.On {
+		case domain.BatteryControlChargeRequest:
+			state.actor.logger.Sugar().Debugf("battery_control@idle: cmd charge %t", cmd.Enable)
+			if cmd.Enable {
 				state.actor.Become(NewBCChargingState(state.actor, false).OnEnterAction(ctx))
 			}
-		case events.BatteryControlSetTargetSoC:
-			state.actor.logger.Debugf("battery_control@idle: cmd setTargetSoC %d", cmd.TargetSoC)
-			state.actor.setChargeTargetSoC(cmd.TargetSoC)
+		case domain.BatteryControlSetTargetSoCRequest:
+			state.actor.logger.Sugar().Debugf("battery_control@idle: cmd setTargetSoC %d", cmd.TargetSoC)
+			state.actor.setChargeTargetSoC(uint8(cmd.TargetSoC))
 		}
-	case CommandErrorResponse:
+	case domain.SetStorageControlResponse:
 		// can be received after exiting holding or charging
-		panic(errors.New(msg.Error))
-	case SetStorageControlResponse:
-		// can be received after exiting holding or charging
+		ctx.SetReceiveTimeout(0)
+		if msg.HasResponseError() {
+			state.actor.logger.Error("battery_control@idle: SetStorageControlResponse error", zap.Error(msg.GetResponseError()))
+			panic(msg.GetResponseError())
+		}
 	default:
-		state.actor.logger.Tracef("battery_control@idle: recv %s", fmt.Sprintf("%T", msg))
+		state.actor.logger.Debug("battery_control@idle: recv", zap.String("type", fmt.Sprintf("%T", msg)))
 	}
 }
 
@@ -213,10 +219,10 @@ func (state BCChargingState) Name() string {
 
 func (state BCChargingState) Receive(ctx actor.Context) {
 	switch msg := ctx.Message().(type) {
-	case ActorHealthRequest:
+	case domain.ActorHealthRequest:
 		state.actor.logger.Debug("battery_control@charging: ActorHealthRequest")
-		ctx.Respond(ActorHealthResponse{
-			Id:      BATTERY_CONTROL_ACTOR_ID,
+		ctx.Respond(domain.ActorHealthResponse{
+			Id:      domain.ACTOR_ID_BATTERY_CONTROL,
 			Healthy: true,
 			State:   state.Name(),
 		})
@@ -226,15 +232,24 @@ func (state BCChargingState) Receive(ctx actor.Context) {
 		state.actor.BecomeStacked(BCAwaitPowerFlowResponseState{
 			actor: state.actor,
 		}.OnEnterAction(ctx))
-	case SetStorageControlResponse:
+	case domain.SetStorageControlResponse:
+		ctx.SetReceiveTimeout(0)
+		if msg.HasResponseError() {
+			state.actor.logger.Error("battery_control@charging SetStorageControlResponse error", zap.Error(msg.GetResponseError()))
+			panic(msg.GetResponseError())
+		}
 		// on successful control response, schedule next control tick
 		state.cancelTick = state.actor.scheduler.RequestOnce(time.Duration(state.params.RevertTimeSeconds)*time.Second/2, ctx.Self(), batteryControlTick{})
 		state.actor.Become(state)
-	case GetStorageControlPowerFlowResponse:
+	case domain.GetStorageControlPowerFlowResponse:
+		if msg.HasResponseError() {
+			state.actor.logger.Error("battery_control@charging GetStorageControlPowerFlowResponse error", zap.Error(msg.GetResponseError()))
+			panic(msg.GetResponseError())
+		}
 		// Battery charge control loop
 		if msg.StorageState.StateOfCharge >= float64(state.actor.targetSOC) {
 			// when battery SoC target is reached, disable force charge
-			state.actor.logger.Infof("battery_control@charging: charge targetSoC is met. Turning off charging control.")
+			state.actor.logger.Info("battery_control@charging: charge targetSoC is met. Turning off charging control.")
 			state.Exit(ctx)
 		} else {
 			var prevPowerValue = state.params.MinChargePowerWatt
@@ -262,37 +277,35 @@ func (state BCChargingState) Receive(ctx actor.Context) {
 			if newPowerValue < 0 {
 				newPowerValue = -1
 			}
-			state.actor.logger.Infof("battery_control@charging: set new charge power %f", newPowerValue)
+			state.actor.logger.Sugar().Infof("battery_control@charging: set new charge power %f", newPowerValue)
 			state.params.MinChargePowerWatt = int32(newPowerValue)
 			state.sendStorageControl(ctx)
+			state.actor.Become(state)
 		}
-	case events.BatteryControlCommand:
+	case domain.BatteryControlRequest:
 		switch cmd := msg.(type) {
-		case events.BatteryControlHold:
-			state.actor.logger.Debugf("battery_control@charging: cmd hold %t", cmd.On)
-			if cmd.On && !state.hold {
+		case domain.BatteryControlHoldRequest:
+			state.actor.logger.Sugar().Debugf("battery_control@charging: cmd hold %t", cmd.Enable)
+			if cmd.Enable && !state.hold {
 				state.hold = true
 				state.actor.Become(state)
 				state.actor.updateHoldSwitchState(true)
-			} else if !cmd.On && state.hold {
+			} else if !cmd.Enable && state.hold {
 				state.hold = false
 				state.actor.Become(state)
 				state.actor.updateHoldSwitchState(false)
 			}
-		case events.BatteryControlCharge:
-			state.actor.logger.Debugf("battery_control@charging: cmd charge %t", cmd.On)
-			if !cmd.On {
+		case domain.BatteryControlChargeRequest:
+			state.actor.logger.Sugar().Debugf("battery_control@charging: cmd charge %t", cmd.Enable)
+			if !cmd.Enable {
 				state.Exit(ctx)
 			}
-		case events.BatteryControlSetTargetSoC:
-			state.actor.logger.Debugf("battery_control@charging: cmd setTargetSoC %d", cmd.TargetSoC)
-			state.actor.setChargeTargetSoC(cmd.TargetSoC)
+		case domain.BatteryControlSetTargetSoCRequest:
+			state.actor.logger.Sugar().Debugf("battery_control@charging: cmd setTargetSoC %d", cmd.TargetSoC)
+			state.actor.setChargeTargetSoC(uint8(cmd.TargetSoC))
 		}
-	case CommandErrorResponse:
-		state.actor.logger.Debugf("battery_control@charging CommandErrorResponse: %s", msg.Error)
-		panic(errors.New(msg.Error))
 	default:
-		state.actor.logger.Tracef("battery_control@charging: recv %s", fmt.Sprintf("%T", msg))
+		state.actor.logger.Debug("battery_control@charging: recv", zap.String("type", fmt.Sprintf("%T", msg)))
 	}
 }
 
@@ -366,44 +379,46 @@ func (state BCHoldingState) Name() string {
 
 func (state BCHoldingState) Receive(ctx actor.Context) {
 	switch msg := ctx.Message().(type) {
-	case ActorHealthRequest:
+	case domain.ActorHealthRequest:
 		state.actor.logger.Debug("battery_control@holding: ActorHealthRequest")
-		ctx.Respond(ActorHealthResponse{
-			Id:      BATTERY_CONTROL_ACTOR_ID,
+		ctx.Respond(domain.ActorHealthResponse{
+			Id:      domain.ACTOR_ID_BATTERY_CONTROL,
 			Healthy: true,
 			State:   state.Name(),
 		})
 	case batteryControlTick:
 		state.actor.logger.Debug("battery_control@holding batteryControlTick")
 		state.sendStorageControl(ctx)
-	case SetStorageControlResponse:
+	case domain.SetStorageControlResponse:
+		ctx.SetReceiveTimeout(0)
+		if msg.HasResponseError() {
+			state.actor.logger.Error("battery_control@holding SetStorageControlResponse error", zap.Error(msg.GetResponseError()))
+			panic(msg.GetResponseError())
+		}
 		// on successful control response, schedule next control tick
 		state.cancelTick = state.actor.scheduler.RequestOnce(time.Duration(state.params.RevertTimeSeconds)*time.Second/2, ctx.Self(), batteryControlTick{})
 		state.actor.Become(state)
-	case CommandErrorResponse:
-		state.actor.logger.Debugf("battery_control@holding CommandErrorResponse: %s", msg.Error)
-		panic(errors.New(msg.Error))
-	case events.BatteryControlCommand:
+	case domain.BatteryControlRequest:
 		switch cmd := msg.(type) {
-		case events.BatteryControlHold:
-			state.actor.logger.Debugf("battery_control@holding: cmd hold %t", cmd.On)
-			if !cmd.On {
+		case domain.BatteryControlHoldRequest:
+			state.actor.logger.Sugar().Debugf("battery_control@holding: cmd hold %t", cmd.Enable)
+			if !cmd.Enable {
 				state.Exit(ctx)
 			}
-		case events.BatteryControlCharge:
-			state.actor.logger.Debugf("battery_control@holding: cmd charge %t", cmd.On)
-			if cmd.On {
+		case domain.BatteryControlChargeRequest:
+			state.actor.logger.Sugar().Debugf("battery_control@holding: cmd charge %t", cmd.Enable)
+			if cmd.Enable {
 				if state.cancelTick != nil {
 					state.cancelTick()
 				}
 				state.actor.Become(NewBCChargingState(state.actor, true).OnEnterAction(ctx))
 			}
-		case events.BatteryControlSetTargetSoC:
-			state.actor.logger.Debugf("battery_control@holding: cmd setTargetSoC %d", cmd.TargetSoC)
-			state.actor.setChargeTargetSoC(cmd.TargetSoC)
+		case domain.BatteryControlSetTargetSoCRequest:
+			state.actor.logger.Sugar().Debugf("battery_control@holding: cmd setTargetSoC %d", cmd.TargetSoC)
+			state.actor.setChargeTargetSoC(uint8(cmd.TargetSoC))
 		}
 	default:
-		state.actor.logger.Tracef("battery_control@holding: recv %s", fmt.Sprintf("%T", msg))
+		state.actor.logger.Debug("battery_control@holding: recv", zap.String("type", fmt.Sprintf("%T", msg)))
 	}
 }
 
@@ -450,10 +465,10 @@ func (state BCDoneState) Name() string {
 
 func (state BCDoneState) Receive(ctx actor.Context) {
 	switch ctx.Message().(type) {
-	case ActorHealthRequest:
+	case domain.ActorHealthRequest:
 		state.actor.logger.Debug("battery_control@done: ActorHealthRequest")
-		ctx.Respond(ActorHealthResponse{
-			Id:      BATTERY_CONTROL_ACTOR_ID,
+		ctx.Respond(domain.ActorHealthResponse{
+			Id:      domain.ACTOR_ID_BATTERY_CONTROL,
 			Healthy: true,
 			State:   state.Name(),
 		})
@@ -474,37 +489,40 @@ func (state BCAwaitStorageControlResponseState) Name() string {
 
 func (state BCAwaitStorageControlResponseState) Receive(ctx actor.Context) {
 	switch msg := ctx.Message().(type) {
-	case SetStorageControlResponse:
-		state.actor.logger.Debugf("battery_control@awaitStorageControlReceive: SetStorageControlResponse %+v", msg)
-		if msg.Error == "" {
-			ctx.RequestWithCustomSender(ctx.Self(), msg, ctx.Sender())
+	case domain.SetStorageControlResponse:
+		ctx.SetReceiveTimeout(0)
+		if msg.HasResponseError() {
+			state.actor.logger.Error("battery_control@awaitStorageControlReceive: SetStorageControlResponse error", zap.Error(msg.GetResponseError()))
 		} else {
-			ctx.RequestWithCustomSender(ctx.Self(), CommandErrorResponse{Error: msg.Error}, ctx.Sender())
+			state.actor.logger.Debug("battery_control@awaitStorageControlReceive: SetStorageControlResponse", zap.Any("response", msg))
 		}
-		state.actor.UnbecomeStacked()
-		state.actor.stash.UnstashAll(ctx)
-	case CommandErrorResponse:
-		state.actor.logger.Debugf("battery_control@awaitStorageControlReceive: CommandErrorResponse %+v", msg)
 		ctx.RequestWithCustomSender(ctx.Self(), msg, ctx.Sender())
 		state.actor.UnbecomeStacked()
 		state.actor.stash.UnstashAll(ctx)
 	case *actor.ReceiveTimeout:
-		state.actor.logger.Debugf("battery_control@awaitStorageControlReceive: ReceiveTimeout %+v", msg)
-		ctx.RequestWithCustomSender(ctx.Self(), CommandErrorResponse{Error: "receive timeout"}, ctx.Sender())
+		ctx.SetReceiveTimeout(0)
+		state.actor.logger.Debug("battery_control@awaitStorageControlReceive: ReceiveTimeout")
+		ctx.RequestWithCustomSender(ctx.Self(), domain.SetStorageControlResponse{
+			ActorResponseMixIn: domain.ActorResponseMixIn{
+				ResponseError: errors.New("receive timeout"),
+			},
+		}, ctx.Sender())
 		state.actor.UnbecomeStacked()
 		state.actor.stash.UnstashAll(ctx)
 	default:
-		state.actor.logger.Tracef("battery_control@awaitStorageControlReceive: stash %s", fmt.Sprintf("%T", msg))
+		state.actor.logger.Debug("battery_control@awaitStorageControlReceive: stash", zap.String("type", fmt.Sprintf("%T", msg)))
 		state.actor.stash.Stash(ctx, msg)
 	}
 }
 
 func (state BCAwaitStorageControlResponseState) OnEnterAction(ctx actor.Context, params sunspec_modbus.StorageControlParams) BCAwaitStorageControlResponseState {
 	PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.actor.modbusActor,
-		SetStorageControlRequest{params: params}, 2*time.Second),
+		domain.SetStorageControlRequest{Params: params}, 2*time.Second),
 		func(err error) any {
-			return CommandErrorResponse{
-				Error: fmt.Sprintf("%s", err),
+			return domain.SetStorageControlResponse{
+				ActorResponseMixIn: domain.ActorResponseMixIn{
+					ResponseError: err,
+				},
 			}
 		})
 	ctx.SetReceiveTimeout(2 * time.Second)
@@ -524,33 +542,39 @@ func (state BCAwaitPowerFlowResponseState) Name() string {
 
 func (state BCAwaitPowerFlowResponseState) Receive(ctx actor.Context) {
 	switch msg := ctx.Message().(type) {
-	case GetStorageControlPowerFlowResponse:
-		state.actor.logger.Debugf("battery_control@awaitPowerFlowReceive: GetStorageControlPowerFlowResponse %+v", msg)
-		ctx.RequestWithCustomSender(ctx.Self(), msg, ctx.Sender())
-		state.actor.UnbecomeStacked()
-		state.actor.stash.UnstashAll(ctx)
-	case CommandErrorResponse:
-		state.actor.logger.Debugf("battery_control@awaitPowerFlowReceive: CommandErrorResponse %+v", msg)
+	case domain.GetStorageControlPowerFlowResponse:
+		ctx.SetReceiveTimeout(0)
+		if msg.HasResponseError() {
+			state.actor.logger.Error("battery_control@awaitPowerFlowReceive: GetStorageControlPowerFlowResponse error", zap.Error(msg.GetResponseError()))
+		} else {
+			state.actor.logger.Debug("battery_control@awaitPowerFlowReceive: GetStorageControlPowerFlowResponse", zap.Any("response", msg))
+		}
 		ctx.RequestWithCustomSender(ctx.Self(), msg, ctx.Sender())
 		state.actor.UnbecomeStacked()
 		state.actor.stash.UnstashAll(ctx)
 	case *actor.ReceiveTimeout:
-		state.actor.logger.Debugf("battery_control@awaitStorageControlReceive: ReceiveTimeout %+v", msg)
-		ctx.RequestWithCustomSender(ctx.Self(), CommandErrorResponse{Error: "receive timeout"}, ctx.Sender())
+		state.actor.logger.Debug("battery_control@awaitPowerFlowReceive: ReceiveTimeout")
+		ctx.RequestWithCustomSender(ctx.Self(), domain.GetStorageControlPowerFlowResponse{
+			ActorResponseMixIn: domain.ActorResponseMixIn{
+				ResponseError: errors.New("receive timeout"),
+			},
+		}, ctx.Sender())
 		state.actor.UnbecomeStacked()
 		state.actor.stash.UnstashAll(ctx)
 	default:
-		state.actor.logger.Tracef("battery_control@awaitPowerFlowReceive: stash %s", fmt.Sprintf("%T", msg))
+		state.actor.logger.Debug("battery_control@awaitPowerFlowReceive: stash", zap.String("type", fmt.Sprintf("%T", msg)))
 		state.actor.stash.Stash(ctx, msg)
 	}
 }
 
 func (state BCAwaitPowerFlowResponseState) OnEnterAction(ctx actor.Context) BCAwaitPowerFlowResponseState {
 	PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.actor.modbusActor,
-		GetStorageControlPowerFlowRequest{}, 2*time.Second),
+		domain.GetStorageControlPowerFlowRequest{}, 2*time.Second),
 		func(err error) any {
-			return CommandErrorResponse{
-				Error: fmt.Sprintf("%s", err),
+			return domain.GetStorageControlPowerFlowResponse{
+				ActorResponseMixIn: domain.ActorResponseMixIn{
+					ResponseError: err,
+				},
 			}
 		})
 	ctx.SetReceiveTimeout(2 * time.Second)

@@ -3,23 +3,21 @@ package actor
 import (
 	"errors"
 	"fmt"
+	adactor "frostnews2mqtt/internal/adapter/actor"
 	"frostnews2mqtt/internal/config"
-	"frostnews2mqtt/internal/events"
+	"frostnews2mqtt/internal/core/domain"
+	. "frostnews2mqtt/internal/util/actorutil"
 	"log"
 	"time"
 
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/asynkron/protoactor-go/eventstream"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 )
 
-const (
-	MASTER_ACTOR_ID = "master"
-)
+type MQTTActorProvider func(*eventstream.EventStream) *adactor.MQTTActor
 
-type MQTTActorProvider func(*eventstream.EventStream) *MQTTActor
-
-type ModbusActorProvider func() *ModbusActor
+type ModbusActorProvider func() *adactor.ModbusActor
 
 type MasterOfPuppetsActor struct {
 	config   config.Config
@@ -34,7 +32,7 @@ type MasterOfPuppetsActor struct {
 	batteryControlActor *actor.PID
 	modbusActorProvider ModbusActorProvider
 	mqttActorProvider   MQTTActorProvider
-	logger              *logrus.Entry
+	logger              *zap.Logger
 	testMQTT            bool
 }
 
@@ -46,7 +44,7 @@ type healthCheckResult struct {
 	respondTo             *actor.PID
 }
 
-func NewMasterOfPuppetsActor(config config.Config, modbusActorProvider ModbusActorProvider, mqttActorProvider MQTTActorProvider, logger *logrus.Logger) *MasterOfPuppetsActor {
+func NewMasterOfPuppetsActor(config config.Config, modbusActorProvider ModbusActorProvider, mqttActorProvider MQTTActorProvider, logger *zap.Logger) *MasterOfPuppetsActor {
 	act := &MasterOfPuppetsActor{
 		config:              config,
 		behavior:            actor.NewBehavior(),
@@ -111,65 +109,62 @@ func (state *MasterOfPuppetsActor) StartingReceive(ctx actor.Context) {
 		state.behavior.Become(state.DefaultReceive)
 		state.stash.UnstashAll(ctx)
 	default:
-		state.logger.Trace("master@starting stash", "type", fmt.Sprintf("%T", msg))
+		state.logger.Debug("master@starting stash", zap.String("type", fmt.Sprintf("%T", msg)))
 		state.stash.Stash(ctx, msg)
 	}
 }
 
 func (state *MasterOfPuppetsActor) DefaultReceive(ctx actor.Context) {
 	switch msg := ctx.Message().(type) {
-	case ActorHealthRequest:
+	case domain.ActorHealthRequest:
 		state.logger.Debug("master@default ActorHealthRequest")
 		state.currentHealthCheck.reset()
 		state.currentHealthCheck.respondTo = ctx.Sender()
 		// Modbus Actor Request
-		PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.modbusActor, ActorHealthRequest{}, 500*time.Millisecond), func(err error) any {
-			return ActorHealthResponse{
-				Id:      MODBUS_ACTOR_ID,
+		PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.modbusActor, domain.ActorHealthRequest{}, 500*time.Millisecond), func(err error) any {
+			return domain.ActorHealthResponse{
+				Id:      domain.ACTOR_ID_MODBUS,
 				Healthy: false,
-				Error:   fmt.Sprintf("%s", err),
 			}
 		})
 		// MQTT Actor Request
-		PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.mqttActor, ActorHealthRequest{}, 500*time.Millisecond), func(err error) any {
-			return ActorHealthResponse{
-				Id:      MQTT_ACTOR_ID,
+		PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.mqttActor, domain.ActorHealthRequest{}, 500*time.Millisecond), func(err error) any {
+			return domain.ActorHealthResponse{
+				Id:      domain.ACTOR_ID_MQTT,
 				Healthy: false,
-				Error:   fmt.Sprintf("%s", err),
 			}
 		})
 		// PowerFlow Actor Request
-		PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.powerFlowActor, ActorHealthRequest{}, 500*time.Millisecond), func(err error) any {
-			return ActorHealthResponse{
-				Id:      POWERFLOW_ACTOR_ID,
+		PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.powerFlowActor, domain.ActorHealthRequest{}, 500*time.Millisecond), func(err error) any {
+			return domain.ActorHealthResponse{
+				Id:      domain.ACTOR_ID_POWERFLOW,
 				Healthy: false,
-				Error:   fmt.Sprintf("%s", err),
 			}
 		})
 
 		ctx.SetReceiveTimeout(1 * time.Second)
 
 		state.behavior.BecomeStacked(state.HealthCheckReceive)
-	case parsedCommand:
+	case adactor.ParsedCommand:
 		// redirect parsedCommand to actor
-		state.logger.Debugf("master@default parsedCommand %+v", msg.command)
-		if msg.command != nil {
-			cmd, err := ParsedMQTTCommandToCommand(*msg.command)
+		state.logger.Debug("master@default parsedCommand", zap.Any("command", msg.Command))
+		if msg.Command != nil {
+			cmd, err := ParsedMQTTCommandToCommand(*msg.Command)
 			if err == nil && cmd != nil {
 				switch pcmd := cmd.(type) {
-				case events.BatteryControlCommand:
+				case domain.BatteryControlRequest:
 					ctx.Send(state.batteryControlActor, pcmd)
 				}
 			}
 		}
 	case *actor.Terminated:
 		// if some actor fails on boot, terminate
-		if msg.Who.Id == fmt.Sprintf("%s/%s", MASTER_ACTOR_ID, MODBUS_ACTOR_ID) {
+		if msg.Who.Id == fmt.Sprintf("%s/%s", domain.ACTOR_ID_MASTER, domain.ACTOR_ID_MODBUS) {
 			state.logger.Error("master@default modbus error")
 			panic(errors.New("modbus terminated"))
 		}
 	default:
-		state.logger.Trace("master@default stash", "type", fmt.Sprintf("%T", msg))
+		state.logger.Debug("master@default stash", zap.String("type", fmt.Sprintf("%T", msg)))
 		state.stash.Stash(ctx, msg)
 	}
 }
@@ -181,15 +176,15 @@ func (state *MasterOfPuppetsActor) HealthCheckReceive(ctx actor.Context) {
 		state.currentHealthCheck.respond(ctx)
 		state.behavior.UnbecomeStacked()
 		state.stash.UnstashAll(ctx)
-	case ActorHealthResponse:
-		state.logger.Debug("master@healthcheck ActorHealthResponse", "sender", msg.Id, "healthy", msg.Healthy)
+	case domain.ActorHealthResponse:
+		state.logger.Debug("master@healthcheck ActorHealthResponse", zap.String("sender", msg.Id), zap.Bool("healthy", msg.Healthy))
 		state.currentHealthCheck.checksReceived++
 		if msg.Healthy {
-			if msg.Id == MODBUS_ACTOR_ID {
+			if msg.Id == domain.ACTOR_ID_MODBUS {
 				state.currentHealthCheck.modbusActorHealthy = true
-			} else if msg.Id == MQTT_ACTOR_ID {
+			} else if msg.Id == domain.ACTOR_ID_MQTT {
 				state.currentHealthCheck.mqttActorHealthy = true
-			} else if msg.Id == POWERFLOW_ACTOR_ID {
+			} else if msg.Id == domain.ACTOR_ID_POWERFLOW {
 				state.currentHealthCheck.powerFlowActorHealthy = true
 			}
 		}
@@ -203,7 +198,7 @@ func (state *MasterOfPuppetsActor) HealthCheckReceive(ctx actor.Context) {
 			ctx.SetReceiveTimeout(1 * time.Second)
 		}
 	default:
-		state.logger.Trace("master@healthcheck stash", "type", fmt.Sprintf("%T", msg))
+		state.logger.Debug("master@healthcheck stash", zap.String("type", fmt.Sprintf("%T", msg)))
 		state.stash.Stash(ctx, msg)
 	}
 }
@@ -215,7 +210,7 @@ func (state *MasterOfPuppetsActor) startModbusActor(ctx actor.Context) (*actor.P
 	modbusProps := actor.PropsFromProducer(func() actor.Actor {
 		return state.modbusActorProvider()
 	}, actor.WithSupervisor(supervisor))
-	modbusActorPID, err := ctx.SpawnNamed(modbusProps, MODBUS_ACTOR_ID)
+	modbusActorPID, err := ctx.SpawnNamed(modbusProps, domain.ACTOR_ID_MODBUS)
 	if err != nil {
 		return nil, err
 	}
@@ -232,9 +227,9 @@ func (state *MasterOfPuppetsActor) startPowerFlowActor(ctx actor.Context) (*acto
 	supervisor := actor.NewAllForOneStrategy(1, 10*time.Second, decider)
 
 	powerFlowProps := actor.PropsFromProducer(func() actor.Actor {
-		return NewPowerFlowActor(&state.config, state.modbusActor, state.eventStream, state.logger.Logger)
+		return NewPowerFlowActor(&state.config, state.modbusActor, state.eventStream, state.logger)
 	}, actor.WithSupervisor(supervisor))
-	powerFlowActorPID, err := ctx.SpawnNamed(powerFlowProps, POWERFLOW_ACTOR_ID)
+	powerFlowActorPID, err := ctx.SpawnNamed(powerFlowProps, domain.ACTOR_ID_POWERFLOW)
 	if err != nil {
 		return nil, err
 	}
@@ -251,7 +246,7 @@ func (state *MasterOfPuppetsActor) startHADiscoveryActor(ctx actor.Context) (*ac
 	supervisor := actor.NewOneForOneStrategy(1, 10*time.Second, decider)
 
 	haDiscProps := actor.PropsFromProducer(func() actor.Actor {
-		return NewHADiscoveryActor(&state.config, state.modbusActor, state.mqttActor, state.logger.Logger)
+		return NewHADiscoveryActor(&state.config, state.modbusActor, state.mqttActor, state.logger)
 	}, actor.WithSupervisor(supervisor))
 	haDiscPID, err := ctx.SpawnNamed(haDiscProps, HADISCOVERY_ACTOR_ID)
 	if err != nil {
@@ -268,7 +263,7 @@ func (state *MasterOfPuppetsActor) startMQTTActor(ctx actor.Context) (*actor.PID
 	mqttProps := actor.PropsFromProducer(func() actor.Actor {
 		return state.mqttActorProvider(state.eventStream)
 	}, actor.WithSupervisor(supervisor))
-	mqttActorPID, err := ctx.SpawnNamed(mqttProps, MQTT_ACTOR_ID)
+	mqttActorPID, err := ctx.SpawnNamed(mqttProps, domain.ACTOR_ID_MQTT)
 	if err != nil {
 		return nil, err
 	}
@@ -285,9 +280,9 @@ func (state *MasterOfPuppetsActor) startBatteryControlActor(ctx actor.Context) (
 	supervisor := actor.NewOneForOneStrategy(1, 10*time.Second, decider)
 
 	battControlProps := actor.PropsFromProducer(func() actor.Actor {
-		return NewBatteryControlActor(&state.config, state.modbusActor, state.eventStream, state.logger.Logger)
+		return NewBatteryControlActor(&state.config, state.modbusActor, state.eventStream, state.logger)
 	}, actor.WithSupervisor(supervisor))
-	battControlPID, err := ctx.SpawnNamed(battControlProps, BATTERY_CONTROL_ACTOR_ID)
+	battControlPID, err := ctx.SpawnNamed(battControlProps, domain.ACTOR_ID_BATTERY_CONTROL)
 	if err != nil {
 		return nil, err
 	}
@@ -311,7 +306,7 @@ func (state *healthCheckResult) allHealthy() bool {
 }
 
 func (state *healthCheckResult) respond(ctx actor.Context) {
-	resp := ActorHealthResponse{
+	resp := domain.ActorHealthResponse{
 		Id:      "master",
 		Healthy: state.allHealthy(),
 	}

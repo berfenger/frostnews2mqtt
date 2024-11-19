@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	log "github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 )
 
 const (
@@ -253,8 +253,7 @@ func TestBatteryControl(t *testing.T) {
 }
 
 func RealInverterReader() InverterModbusReader {
-	logger := log.New()
-	logger.SetLevel(log.TraceLevel)
+	logger := zap.Must(zap.NewDevelopment())
 	reader, err := CreateInverterIntSFModbusReader("-.-.-.-", 502, 0, 1*time.Second, false, logger, nil)
 	if err != nil {
 		panic(err)
@@ -271,8 +270,7 @@ func MockedInverterReader() InverterModbusReader {
 }
 
 func RealACMeterReader() ACMeterModbusReader {
-	logger := log.New()
-	logger.SetLevel(log.TraceLevel)
+	logger := zap.Must(zap.NewDevelopment())
 	reader, err := CreateACMeterIntSFModbusReader("-.-.-.-", 502, 240, 1*time.Second, false, logger, nil)
 	if err != nil {
 		panic(err)

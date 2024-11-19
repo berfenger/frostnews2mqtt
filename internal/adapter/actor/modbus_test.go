@@ -1,13 +1,15 @@
 package actor
 
 import (
+	"frostnews2mqtt/internal/core/domain"
+	"frostnews2mqtt/internal/util/actorutil"
 	"frostnews2mqtt/pkg/sunspec_modbus"
 	"testing"
 	"time"
 
 	"github.com/asynkron/protoactor-go/actor"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 )
 
 func TestGetDevicesInfoModbusActor(t *testing.T) {
@@ -26,10 +28,9 @@ func TestGetDevicesInfoModbusActor(t *testing.T) {
 		return
 	}
 
-	logger := logrus.New()
-	logger.SetLevel(logrus.DebugLevel)
+	logger := zap.Must(zap.NewDevelopment())
 
-	as := TestActorSystem()
+	as := actorutil.NewActorSystemWithZapLogger(logger)
 
 	context := as.Root
 
@@ -38,13 +39,13 @@ func TestGetDevicesInfoModbusActor(t *testing.T) {
 
 	time.Sleep(1 * time.Second)
 
-	msg := GetDevicesInfoRequest{}
+	msg := domain.GetDevicesInfoRequest{}
 	result, err := context.RequestFuture(pid, msg, 15*time.Second).Result()
 	if err != nil {
 		t.Error(err)
 		return
 	}
-	resp := result.(GetDevicesInfoResponse)
+	resp := result.(domain.GetDevicesInfoResponse)
 
 	assert.Equal(resp.Inverter.Manufacturer, "Frostnews", "Inverter manufacturer")
 	assert.Equal(resp.Inverter.Model, "Primo GEN24 4.0", "Inverter model")
@@ -74,10 +75,9 @@ func TestGetPowerFlowoModbusActor(t *testing.T) {
 		return
 	}
 
-	logger := logrus.New()
-	logger.SetLevel(logrus.DebugLevel)
+	logger := zap.Must(zap.NewDevelopment())
 
-	as := TestActorSystem()
+	as := actorutil.NewActorSystemWithZapLogger(logger)
 	context := as.Root
 
 	props := actor.PropsFromProducer(func() actor.Actor { return NewModbusActor(inv, acMeter, logger) })
@@ -85,14 +85,14 @@ func TestGetPowerFlowoModbusActor(t *testing.T) {
 
 	time.Sleep(1 * time.Second)
 
-	msg := GetPowerFlowRequest{}
+	msg := domain.GetPowerFlowRequest{}
 
 	result, err := context.RequestFuture(pid, msg, 15*time.Second).Result()
 	if err != nil {
 		t.Error(err)
 		return
 	}
-	resp := result.(GetPowerFlowResponse)
+	resp := result.(domain.GetPowerFlowResponse)
 
 	assert.True(resp.Inverter.ACPowerWatt > 0, "ACPowerWatt bounds")
 	assert.True(resp.Inverter.BatteryChargePowerWatt >= 0, "BatteryChargePowerWatt bounds")

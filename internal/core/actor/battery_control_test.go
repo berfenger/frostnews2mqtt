@@ -2,24 +2,25 @@ package actor
 
 import (
 	"errors"
+	adactor "frostnews2mqtt/internal/adapter/actor"
 	"frostnews2mqtt/internal/config"
-	"frostnews2mqtt/internal/events"
+	"frostnews2mqtt/internal/core/domain"
+	"frostnews2mqtt/internal/util/actorutil"
 	"frostnews2mqtt/pkg/sunspec_modbus"
 	"testing"
 	"time"
 
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/asynkron/protoactor-go/eventstream"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 )
 
 func TestBatteryControlFlow(t *testing.T) {
 
-	logger := logrus.New()
-	logger.SetLevel(logrus.DebugLevel)
+	logger := zap.Must(zap.NewDevelopment())
 
-	as := TestActorSystem()
+	as := actorutil.NewActorSystemWithZapLogger(logger)
 
 	context := as.Root
 
@@ -29,7 +30,7 @@ func TestBatteryControlFlow(t *testing.T) {
 
 	// modbus actor
 	modbusProps := actor.PropsFromProducer(func() actor.Actor {
-		return NewModbusActor(&sunspec_modbus.TestInverterModbusReader{},
+		return adactor.NewModbusActor(&sunspec_modbus.TestInverterModbusReader{},
 			sunspec_modbus.TestACMeterModbusReader{}, logger)
 	})
 	modbusActorPID := context.Spawn(modbusProps)
@@ -43,9 +44,10 @@ func TestBatteryControlFlow(t *testing.T) {
 	time.Sleep(2 * time.Second)
 
 	// charging
-	context.Send(bcActorPID, events.BatteryControlCharge{On: true})
+	context.Send(bcActorPID, domain.BatteryControlChargeRequest{Enable: true})
 
-	time.Sleep(200 * time.Millisecond)
+	//time.Sleep(200 * time.Millisecond)
+	time.Sleep(1 * time.Hour)
 
 	hcr, err := healthCheck(context, bcActorPID)
 	if err != nil {
@@ -56,7 +58,7 @@ func TestBatteryControlFlow(t *testing.T) {
 	assert.Equal(t, "charging", hcr.State, "actor state should be charging")
 
 	// idle
-	context.Send(bcActorPID, events.BatteryControlCharge{On: false})
+	context.Send(bcActorPID, domain.BatteryControlChargeRequest{Enable: false})
 	time.Sleep(200 * time.Millisecond)
 
 	hcr, err = healthCheck(context, bcActorPID)
@@ -68,7 +70,7 @@ func TestBatteryControlFlow(t *testing.T) {
 	assert.Equal(t, "idle", hcr.State, "actor state should be idle")
 
 	// holding
-	context.Send(bcActorPID, events.BatteryControlHold{On: true})
+	context.Send(bcActorPID, domain.BatteryControlHoldRequest{Enable: true})
 
 	time.Sleep(200 * time.Millisecond)
 
@@ -81,7 +83,7 @@ func TestBatteryControlFlow(t *testing.T) {
 	assert.Equal(t, "holding", hcr.State, "actor state should be holding")
 
 	// idle
-	context.Send(bcActorPID, events.BatteryControlHold{On: true})
+	context.Send(bcActorPID, domain.BatteryControlHoldRequest{Enable: true})
 
 	time.Sleep(200 * time.Millisecond)
 
@@ -94,8 +96,8 @@ func TestBatteryControlFlow(t *testing.T) {
 	assert.Equal(t, "holding", hcr.State, "actor state should be holding")
 
 	// hold + charge
-	context.Send(bcActorPID, events.BatteryControlHold{On: true})
-	context.Send(bcActorPID, events.BatteryControlCharge{On: true})
+	context.Send(bcActorPID, domain.BatteryControlHoldRequest{Enable: true})
+	context.Send(bcActorPID, domain.BatteryControlChargeRequest{Enable: true})
 
 	time.Sleep(200 * time.Millisecond)
 
@@ -108,7 +110,7 @@ func TestBatteryControlFlow(t *testing.T) {
 	assert.Equal(t, "charging", hcr.State, "actor state should be charging")
 
 	// exit charging and return to holding
-	context.Send(bcActorPID, events.BatteryControlCharge{On: false})
+	context.Send(bcActorPID, domain.BatteryControlChargeRequest{Enable: false})
 
 	time.Sleep(200 * time.Millisecond)
 
@@ -121,7 +123,7 @@ func TestBatteryControlFlow(t *testing.T) {
 	assert.Equal(t, "holding", hcr.State, "actor state should be holding")
 
 	// exit holding and return to idle
-	context.Send(bcActorPID, events.BatteryControlHold{On: false})
+	context.Send(bcActorPID, domain.BatteryControlHoldRequest{Enable: false})
 
 	time.Sleep(200 * time.Millisecond)
 
@@ -135,12 +137,12 @@ func TestBatteryControlFlow(t *testing.T) {
 
 }
 
-func healthCheck(ctx *actor.RootContext, pid *actor.PID) (*ActorHealthResponse, error) {
-	resp, err := ctx.RequestFuture(pid, ActorHealthRequest{}, 2*time.Second).Result()
+func healthCheck(ctx *actor.RootContext, pid *actor.PID) (*domain.ActorHealthResponse, error) {
+	resp, err := ctx.RequestFuture(pid, domain.ActorHealthRequest{}, 2*time.Second).Result()
 	if err != nil {
 		return nil, err
 	}
-	hcr, ok := resp.(ActorHealthResponse)
+	hcr, ok := resp.(domain.ActorHealthResponse)
 	if !ok {
 		return nil, errors.New("unexpcted response type")
 	}

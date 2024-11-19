@@ -6,13 +6,13 @@ import (
 	"time"
 
 	"github.com/simonvetter/modbus"
-	log "github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 )
 
 type InverterIntSFModbusReader struct {
 	ModbusClient
 
-	logger        *log.Logger
+	logger        *zap.Logger
 	blocks        inverterIntSFModbusBlocks
 	ignoreFronius bool
 }
@@ -226,16 +226,16 @@ func (inv InverterIntSFModbusReader) SupportsPowerControl() (bool, error) {
 	return inv.blocks.controls > 0, nil
 }
 
-func traceLoggerInstrumentation(logger *log.Entry) *ModbusInstrument {
+func traceLoggerInstrumentation(logger *zap.Logger) *ModbusInstrument {
 	return &ModbusInstrument{
 		RecordTime: func(fnName string, readTime time.Duration) {
-			logger.Tracef("modbus [%s]: %d millis", fnName, readTime.Milliseconds())
+			logger.Sugar().Debug("modbus [%s]: %d millis", fnName, readTime.Milliseconds())
 		},
 	}
 }
 
 func CreateInverterIntSFModbusReader(ip string, port uint, inverterAddress uint8, timeout time.Duration,
-	ignoreFronius bool, logger *log.Logger, instrumentation *ModbusInstrument) (InverterModbusReader, error) {
+	ignoreFronius bool, logger *zap.Logger, instrumentation *ModbusInstrument) (InverterModbusReader, error) {
 	client, err := modbus.NewClient(&modbus.ClientConfiguration{
 		URL:     fmt.Sprintf("tcp://%s:%d", ip, port),
 		Timeout: timeout,
@@ -246,7 +246,7 @@ func CreateInverterIntSFModbusReader(ip string, port uint, inverterAddress uint8
 
 	// instrumentation
 	var inst []ModbusInstrument
-	logInst := traceLoggerInstrumentation(logger.WithField("target", "inverter").WithField("inverter", inverterAddress))
+	logInst := traceLoggerInstrumentation(logger.With(zap.String("target", "inverter")).With(zap.Uint8("inverter", inverterAddress)))
 	if logInst != nil {
 		inst = append(inst, *logInst)
 	}

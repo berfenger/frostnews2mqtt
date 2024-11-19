@@ -1,11 +1,11 @@
-package actor
+package actorutil
 
 import (
 	"github.com/asynkron/protoactor-go/actor"
 )
 
 type ActorWithStates struct {
-	behavior actor.Behavior
+	Behavior actor.Behavior
 }
 
 type ActorState interface {
@@ -14,13 +14,13 @@ type ActorState interface {
 }
 
 func (s *ActorWithStates) Become(state ActorState) {
-	s.behavior.Become(state.Receive)
+	s.Behavior.Become(state.Receive)
 }
 
 func (s *ActorWithStates) BecomeStacked(state ActorState) {
-	s.behavior.BecomeStacked(state.Receive)
+	s.Behavior.BecomeStacked(state.Receive)
 }
 
 func (s *ActorWithStates) UnbecomeStacked() {
-	s.behavior.UnbecomeStacked()
+	s.Behavior.UnbecomeStacked()
 }

@@ -12,15 +12,17 @@ import (
 	"syscall"
 	"time"
 
-	"frostnews2mqtt/internal/actor"
+	adactor "frostnews2mqtt/internal/adapter/actor"
 	"frostnews2mqtt/internal/config"
+	"frostnews2mqtt/internal/core/actor"
 	"frostnews2mqtt/internal/server"
+	"frostnews2mqtt/internal/util/actorutil"
 	"frostnews2mqtt/pkg/sunspec_modbus"
 
 	pactor "github.com/asynkron/protoactor-go/actor"
 	"github.com/asynkron/protoactor-go/eventstream"
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 )
 
 func gracefulShutdown(apiServer *http.Server, done chan bool) {
@@ -57,11 +59,17 @@ func main() {
 	}
 	safePrintConfig(*cfg)
 
+	// zap logger
+	zapCfg := zap.NewProductionConfig()
+	zapCfg.Level = zap.NewAtomicLevelAt(cfg.LogLevel)
+
+	logger := zap.Must(zapCfg.Build())
+
 	// init actor system
-	as := pactor.NewActorSystem()
+	as := actorutil.NewActorSystemWithZapLogger(logger)
 	ctx := as.Root
-	logger := logrus.New()
-	logger.SetLevel(cfg.LogLevel)
+
+	defer logger.Sync()
 
 	// init Modbus actor provider
 	modbusProv, err := modbusActorProvider(cfg, logger)
@@ -132,19 +140,19 @@ func initConfig() (*config.Config, error) {
 	// parse log level
 	switch viper.GetString("log_level") {
 	case "trace":
-		cfg.LogLevel = logrus.TraceLevel
+		cfg.LogLevel = zap.DebugLevel
 	case "debug":
-		cfg.LogLevel = logrus.DebugLevel
+		cfg.LogLevel = zap.DebugLevel
 	case "info":
-		cfg.LogLevel = logrus.InfoLevel
+		cfg.LogLevel = zap.InfoLevel
 	case "error":
-		cfg.LogLevel = logrus.ErrorLevel
+		cfg.LogLevel = zap.ErrorLevel
 	case "warn":
-		cfg.LogLevel = logrus.WarnLevel
+		cfg.LogLevel = zap.WarnLevel
 	case "fatal":
-		cfg.LogLevel = logrus.FatalLevel
+		cfg.LogLevel = zap.FatalLevel
 	default:
-		cfg.LogLevel = logrus.InfoLevel
+		cfg.LogLevel = zap.InfoLevel
 	}
 
 	// check and fix base topic
@@ -175,7 +183,7 @@ func initConfig() (*config.Config, error) {
 	return &cfg, nil
 }
 
-func modbusActorProvider(cfg *config.Config, logger *logrus.Logger) (actor.ModbusActorProvider, error) {
+func modbusActorProvider(cfg *config.Config, logger *zap.Logger) (actor.ModbusActorProvider, error) {
 
 	inv, err := sunspec_modbus.CreateInverterIntSFModbusReader(cfg.InverterModbusTcp.Host,
 		cfg.InverterModbusTcp.Port, uint8(cfg.InverterModbusTcp.InverterId), 1*time.Second,
@@ -193,14 +201,14 @@ func modbusActorProvider(cfg *config.Config, logger *logrus.Logger) (actor.Modbu
 		return nil, err
 	}
 
-	return func() *actor.ModbusActor {
-		return actor.NewModbusActor(inv, acMeter, logger)
+	return func() *adactor.ModbusActor {
+		return adactor.NewModbusActor(inv, acMeter, logger)
 	}, nil
 }
 
-func mqttActorProvider(cfg *config.Config, logger *logrus.Logger) actor.MQTTActorProvider {
-	return func(es *eventstream.EventStream) *actor.MQTTActor {
-		return actor.NewMQTTActor(cfg, es, logger)
+func mqttActorProvider(cfg *config.Config, logger *zap.Logger) actor.MQTTActorProvider {
+	return func(es *eventstream.EventStream) *adactor.MQTTActor {
+		return adactor.NewMQTTActor(cfg, es, logger)
 	}
 }
 

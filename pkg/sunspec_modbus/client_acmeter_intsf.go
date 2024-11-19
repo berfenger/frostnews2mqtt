@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/simonvetter/modbus"
-	log "github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 )
 
 type acMeterIntSFModbusBlocks struct {
@@ -26,7 +26,7 @@ type ACMeterIntSFModbusReader struct {
 }
 
 func CreateACMeterIntSFModbusReader(ip string, port uint, acMeterAddress uint8, timeout time.Duration,
-	ignoreFronius bool, logger *log.Logger, instrumentation *ModbusInstrument) (ACMeterModbusReader, error) {
+	ignoreFronius bool, logger *zap.Logger, instrumentation *ModbusInstrument) (ACMeterModbusReader, error) {
 	client, err := modbus.NewClient(&modbus.ClientConfiguration{
 		URL:     fmt.Sprintf("tcp://%s:%d", ip, port),
 		Timeout: timeout,
@@ -36,7 +36,7 @@ func CreateACMeterIntSFModbusReader(ip string, port uint, acMeterAddress uint8, 
 	}
 	// instrumentation
 	var inst []ModbusInstrument
-	logInst := traceLoggerInstrumentation(logger.WithField("target", "acMeter").WithField("acMeter", acMeterAddress))
+	logInst := traceLoggerInstrumentation(logger.With(zap.String("target", "acMeter")).With(zap.Uint8("acMeter", acMeterAddress)))
 	if logInst != nil {
 		inst = append(inst, *logInst)
 	}

@@ -2,7 +2,7 @@ package mqtt
 
 import (
 	"fmt"
-	"frostnews2mqtt/internal/events"
+	"frostnews2mqtt/internal/core/domain"
 )
 
 type HADiscoveryConfig struct {
@@ -37,27 +37,27 @@ type HADiscoveryDevice struct {
 	ViaDevice    string   `json:"via_device,omitempty"`
 }
 
-func HADiscoverySensorTopic(sensor events.GenericSensor) string {
+func HADiscoverySensorTopic(sensor domain.GenericSensor) string {
 	return fmt.Sprintf("homeassistant/%s/%s/%s/config", sensor.SensorType, sensor.Device.Id, sensor.Id)
 }
 
-func HADiscoverySwitchTopic(sensor events.GenericSwitch) string {
+func HADiscoverySwitchTopic(sensor domain.GenericSwitch) string {
 	return fmt.Sprintf("homeassistant/switch/%s/%s/config", sensor.Device.Id, sensor.Id)
 }
 
-func HADiscoveryInputNumberTopic(sensor events.GenericInputNumber) string {
+func HADiscoveryInputNumberTopic(sensor domain.GenericInputNumber) string {
 	return fmt.Sprintf("homeassistant/number/%s/%s/config", sensor.Device.Id, sensor.Id)
 }
 
-func GenericSensorToHADiscoveryMessage(client *MQTTClient, sensor events.GenericSensor) HADiscoveryConfig {
+func GenericSensorToHADiscoveryMessage(client *MQTTClient, sensor domain.GenericSensor) HADiscoveryConfig {
 	dev := device(sensor.Device)
 	var topic string
 	switch {
-	case sensor.Id == events.SENSOR_ID_BRIDGE_STATE:
+	case sensor.Id == domain.SENSOR_ID_BRIDGE_STATE:
 		topic = client.BridgeStateTopic()
-	case sensor.SensorType == events.SENSOR_TYPE_SENSOR:
+	case sensor.SensorType == domain.SENSOR_TYPE_SENSOR:
 		topic = client.SensorStateTopic(sensor.Id)
-	case sensor.SensorType == events.SENSOR_TYPE_BINARY:
+	case sensor.SensorType == domain.SENSOR_TYPE_BINARY:
 		topic = client.BinarySensorStateTopic(sensor.Id)
 	}
 	disConfig := HADiscoveryConfig{
@@ -74,17 +74,17 @@ func GenericSensorToHADiscoveryMessage(client *MQTTClient, sensor events.Generic
 		EnabledByDefault:  sensor.EnabledByDefault,
 		Platform:          "mqtt",
 	}
-	if sensor.Id == events.SENSOR_ID_BRIDGE_STATE {
+	if sensor.Id == domain.SENSOR_ID_BRIDGE_STATE {
 		disConfig.PayloadOn = MQTT_PAYLOAD_ONLINE
 		disConfig.PayloadOff = MQTT_PAYLOAD_OFFLINE
-	} else if sensor.Id == events.SENSOR_TYPE_BINARY {
+	} else if sensor.Id == domain.SENSOR_TYPE_BINARY {
 		disConfig.PayloadOn = MQTT_PAYLOAD_ON
 		disConfig.PayloadOff = MQTT_PAYLOAD_OFF
 	}
 	return disConfig
 }
 
-func GenericSwitchToHADiscoveryMessage(client *MQTTClient, _switch events.GenericSwitch) HADiscoveryConfig {
+func GenericSwitchToHADiscoveryMessage(client *MQTTClient, _switch domain.GenericSwitch) HADiscoveryConfig {
 	dev := device(_switch.Device)
 	topic := client.SwitchStateTopic(_switch.Id)
 	cmdTopic := client.SwitchCommandTopic(_switch.Id)
@@ -103,7 +103,7 @@ func GenericSwitchToHADiscoveryMessage(client *MQTTClient, _switch events.Generi
 	return disConfig
 }
 
-func GenericInputNumberToHADiscoveryMessage(client *MQTTClient, inputNumber events.GenericInputNumber) HADiscoveryConfig {
+func GenericInputNumberToHADiscoveryMessage(client *MQTTClient, inputNumber domain.GenericInputNumber) HADiscoveryConfig {
 	dev := device(inputNumber.Device)
 	topic := client.InputNumberStateTopic(inputNumber.Id)
 	cmdTopic := client.InputNumberCommandTopic(inputNumber.Id)
@@ -125,7 +125,7 @@ func GenericInputNumberToHADiscoveryMessage(client *MQTTClient, inputNumber even
 	return disConfig
 }
 
-func device(d events.Device) HADiscoveryDevice {
+func device(d domain.Device) HADiscoveryDevice {
 	return HADiscoveryDevice{
 		Id:           []string{d.Id},
 		Manufacturer: d.Manufacturer,

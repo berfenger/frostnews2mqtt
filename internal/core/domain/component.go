@@ -1,6 +1,5 @@
-package events
+package domain
 
-// Sensor Model
 type Device struct {
 	Id           string
 	Name         string
@@ -43,62 +42,4 @@ type GenericInputNumber struct {
 	Step         float64
 	Mode         string
 	InitialValue float64
-}
-
-// EventStream model
-type GenericSensorUpdateEvent struct {
-	Id string
-}
-
-type SensorUpdateEvent struct {
-	GenericSensorUpdateEvent
-	Value    float64
-	Decimals uint
-}
-
-type BinarySensorUpdateEvent struct {
-	GenericSensorUpdateEvent
-	Value bool
-}
-
-type SwitchSensorUpdateEvent struct {
-	GenericSensorUpdateEvent
-	Value bool
-}
-
-type TextSensorUpdateEvent struct {
-	GenericSensorUpdateEvent
-	Value string
-}
-
-type BridgeStateUpdateEvent struct {
-	GenericSensorUpdateEvent
-	Value bool
-}
-
-type InputNumberSensorUpdateEvent struct {
-	GenericSensorUpdateEvent
-	Value    float64
-	Decimals uint
-}
-
-type ParsedCommand interface{}
-
-type BatteryControlCommand interface {
-	ParsedCommand
-}
-
-type BatteryControlHold struct {
-	BatteryControlCommand
-	On bool
-}
-
-type BatteryControlCharge struct {
-	BatteryControlCommand
-	On bool
-}
-
-type BatteryControlSetTargetSoC struct {
-	BatteryControlCommand
-	TargetSoC uint8
 }

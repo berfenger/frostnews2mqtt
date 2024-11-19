@@ -2,6 +2,8 @@ package actor
 
 import (
 	"fmt"
+	adactor "frostnews2mqtt/internal/adapter/actor"
+	"frostnews2mqtt/internal/core/domain"
 	"frostnews2mqtt/internal/util"
 	"frostnews2mqtt/pkg/sunspec_modbus"
 	"testing"
@@ -9,8 +11,8 @@ import (
 
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/asynkron/protoactor-go/eventstream"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 )
 
 func TestMasterActor(t *testing.T) {
@@ -19,14 +21,15 @@ func TestMasterActor(t *testing.T) {
 	context := as.Root
 
 	cfg := util.LoadTestConfig()
-	logger := logrus.New()
-	logger.SetLevel(cfg.LogLevel)
+	logCfg := zap.NewDevelopmentConfig()
+	logCfg.Level = zap.NewAtomicLevelAt(cfg.LogLevel)
+	logger := zap.Must(logCfg.Build())
 
 	props := actor.PropsFromProducer(func() actor.Actor {
-		return NewMasterOfPuppetsActor(cfg, func() *ModbusActor {
-			return NewModbusActor(&sunspec_modbus.TestInverterModbusReader{}, sunspec_modbus.TestACMeterModbusReader{}, logger)
-		}, func(es *eventstream.EventStream) *MQTTActor {
-			return NewTestMQTTActor(&cfg, es, logger)
+		return NewMasterOfPuppetsActor(cfg, func() *adactor.ModbusActor {
+			return adactor.NewModbusActor(&sunspec_modbus.TestInverterModbusReader{}, sunspec_modbus.TestACMeterModbusReader{}, logger)
+		}, func(es *eventstream.EventStream) *adactor.MQTTActor {
+			return adactor.NewTestMQTTActor(&cfg, es, logger)
 		}, logger)
 	})
 	pid, err := context.SpawnNamed(props, "master")
@@ -37,12 +40,12 @@ func TestMasterActor(t *testing.T) {
 
 	time.Sleep(2 * time.Second)
 
-	res, err := context.RequestFuture(pid, ActorHealthRequest{}, 10*time.Second).Result()
+	res, err := context.RequestFuture(pid, domain.ActorHealthRequest{}, 10*time.Second).Result()
 	if err != nil {
 		t.Error(err)
 		//return
 	}
-	healthResp, ok := res.(ActorHealthResponse)
+	healthResp, ok := res.(domain.ActorHealthResponse)
 	assert.True(t, ok)
 	fmt.Printf("Health response: %+v\n", healthResp)
 	assert.NotNil(t, healthResp)

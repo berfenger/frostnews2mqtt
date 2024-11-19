@@ -1,4 +1,4 @@
-package actor
+package actorutil
 
 import (
 	"github.com/asynkron/protoactor-go/actor"

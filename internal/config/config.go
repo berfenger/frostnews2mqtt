@@ -5,11 +5,11 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap/zapcore"
 )
 
 type Config struct {
-	LogLevel                           logrus.Level
+	LogLevel                           zapcore.Level
 	InverterModbusTcp                  InverterModbusTCPConfig `mapstructure:"inverter_modbus_tcp"`
 	MQTT                               MQTTConfig              `mapstructure:"mqtt"`
 	PowerFlowPollIntervalMillis        uint32                  `mapstructure:"power_flow_poll_interval_millis"`

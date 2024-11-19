@@ -3,12 +3,12 @@ package util
 import (
 	"frostnews2mqtt/internal/config"
 
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 )
 
 func LoadTestConfig() config.Config {
 	return config.Config{
-		LogLevel: logrus.DebugLevel,
+		LogLevel: zap.DebugLevel,
 		InverterModbusTcp: config.InverterModbusTCPConfig{
 			Host:       "-.-.-.-",
 			Port:       502,

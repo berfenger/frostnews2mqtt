@@ -1,7 +1,7 @@
 package server
 
 import (
-	"frostnews2mqtt/internal/actor"
+	"frostnews2mqtt/internal/core/domain"
 	"net/http"
 	"time"
 
@@ -22,11 +22,11 @@ func (s *Server) RegisterRoutes() http.Handler {
 }
 
 func (s *Server) HealthCheckHandler(c echo.Context) error {
-	res, err := s.rootContext.RequestFuture(s.masterActor, actor.ActorHealthRequest{}, 10*time.Second).Result()
+	res, err := s.rootContext.RequestFuture(s.masterActor, domain.ActorHealthRequest{}, 10*time.Second).Result()
 	if err != nil {
 		return c.String(http.StatusServiceUnavailable, "health_check: FAIL")
 	}
-	if response, ok := res.(actor.ActorHealthResponse); ok && response.Healthy {
+	if response, ok := res.(domain.ActorHealthResponse); ok && response.Healthy {
 		return c.String(http.StatusOK, "health_check: OK")
 	}
 	return c.String(http.StatusServiceUnavailable, "health_check: FAIL")
