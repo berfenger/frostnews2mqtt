@@ -46,8 +46,7 @@ func TestBatteryControlFlow(t *testing.T) {
 	// charging
 	context.Send(bcActorPID, domain.BatteryControlChargeRequest{Enable: true})
 
-	//time.Sleep(200 * time.Millisecond)
-	time.Sleep(1 * time.Hour)
+	time.Sleep(200 * time.Millisecond)
 
 	hcr, err := healthCheck(context, bcActorPID)
 	if err != nil {
