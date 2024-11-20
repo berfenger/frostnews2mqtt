@@ -96,7 +96,7 @@ func (t *SafeBackgroundTask[T]) Run() {
 	}
 
 	if t.onSuccess != nil {
-		t.onSuccess(result.Value)
+		t.onSuccess(*finalValue)
 	}
 }
 
