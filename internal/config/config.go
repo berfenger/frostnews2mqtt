@@ -9,16 +9,15 @@ import (
 )
 
 type Config struct {
-	LogLevel                           zapcore.Level
-	InverterModbusTcp                  InverterModbusTCPConfig `mapstructure:"inverter_modbus_tcp"`
-	MQTT                               MQTTConfig              `mapstructure:"mqtt"`
-	PowerFlowPollIntervalMillis        uint32                  `mapstructure:"power_flow_poll_interval_millis"`
-	TrackHousePower                    bool                    `mapstructure:"track_house_power"`
-	MaxImportPower                     uint                    `mapstructure:"max_import_power"`
-	BatteryControlRevertTimeoutSeconds uint                    `mapstructure:"battery_control_revert_timeout_seconds"`
-	FeedInControlRevertTimeoutSeconds  uint                    `mapstructure:"feedin_control_revert_timeout_seconds"`
-	Port                               uint                    `mapstructure:"port"`
-	HttpLog                            bool                    `mapstructure:"http_log"`
+	LogLevel          zapcore.Level
+	InverterModbusTcp InverterModbusTCPConfig `mapstructure:"inverter_modbus_tcp"`
+	MQTT              MQTTConfig              `mapstructure:"mqtt"`
+
+	GridConfig           GridConfig           `mapstructure:"grid"`
+	BatteryControlConfig BatteryControlConfig `mapstructure:"battery_control"`
+	MonitorConfig        MonitorConfig        `mapstructure:"monitor"`
+	Port                 uint                 `mapstructure:"port"`
+	HttpLog              bool                 `mapstructure:"http_log"`
 }
 
 type InverterModbusTCPConfig struct {
@@ -27,6 +26,21 @@ type InverterModbusTCPConfig struct {
 	MeterId       uint `mapstructure:"meter_id"`
 	InverterId    uint `mapstructure:"inverter_id"`
 	IgnoreFronius bool `mapstructure:"ignore_fronius"`
+}
+
+type MonitorConfig struct {
+	TrackHousePower    bool   `mapstructure:"track_house_power"`
+	PollIntervalMillis uint32 `mapstructure:"poll_interval_millis"`
+}
+
+type GridConfig struct {
+	MaxImportPower uint `mapstructure:"max_import_power"`
+}
+
+type BatteryControlConfig struct {
+	ControlIntervalMillis uint32 `mapstructure:"control_interval_millis"`
+	StartPowerThreshold   uint   `mapstructure:"start_power_threshold"`
+	MaxRatePowerIncrease  uint   `mapstructure:"max_rate_power_increase"`
 }
 
 type MQTTConfig struct {

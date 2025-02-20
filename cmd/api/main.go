@@ -170,14 +170,20 @@ func initConfig() (*config.Config, error) {
 	cfg.MQTT.HADiscoveryTopic = hadBaseTopic
 
 	// check bounds
-	if cfg.BatteryControlRevertTimeoutSeconds <= 0 {
-		return nil, errors.New("config param battery_control_revert_timeout_seconds should be greater than zero")
+	if cfg.BatteryControlConfig.ControlIntervalMillis < 2000 {
+		return nil, errors.New("config param battery_control.control_invertal_millis should be >= 2000ms")
 	}
-	if cfg.FeedInControlRevertTimeoutSeconds <= 0 {
-		return nil, errors.New("config param feedin_control_revert_timeout_seconds should be greater than zero")
+	if cfg.BatteryControlConfig.MaxRatePowerIncrease <= 0 {
+		return nil, errors.New("config param battery_control.max_rate_power_increase should be > 0")
 	}
-	if cfg.MaxImportPower <= 0 {
-		return nil, errors.New("config param max_import_power should be greater than zero")
+	if cfg.BatteryControlConfig.StartPowerThreshold < 0 {
+		return nil, errors.New("config param battery_control.start_power_threshold should be >= 0")
+	}
+	if cfg.GridConfig.MaxImportPower <= 0 {
+		return nil, errors.New("config param grid.max_import_power should be > 0")
+	}
+	if cfg.MonitorConfig.PollIntervalMillis < 1000 {
+		return nil, errors.New("config param monitor.poll_interval_millis should be >= 1000")
 	}
 
 	return &cfg, nil
@@ -217,11 +223,12 @@ func setConfigDefaults() {
 	viper.SetDefault("mqtt.ha_discovery_enable", false)
 	viper.SetDefault("mqtt.base_topic", "frostnews")
 	viper.SetDefault("mqtt.ha_discovery_topic", "homeassistant")
-	viper.SetDefault("power_flow_poll_interval_millis", 5000)
-	viper.SetDefault("track_house_power", false)
-	viper.SetDefault("max_import_power", 0)
-	viper.SetDefault("battery_control_revert_timeout_seconds", 30)
-	viper.SetDefault("feedin_control_revert_timeout_seconds", 30)
+	viper.SetDefault("monitor.track_house_power", false)
+	viper.SetDefault("monitor.poll_interval_millis", 5000)
+	viper.SetDefault("grid.max_import_power", 0)
+	viper.SetDefault("battery_control.control_interval_millis", 20000)
+	viper.SetDefault("battery_control.start_power_threshold", 500)
+	viper.SetDefault("battery_control.max_rate_power_increase", 800)
 	viper.SetDefault("port", 8080)
 }
 

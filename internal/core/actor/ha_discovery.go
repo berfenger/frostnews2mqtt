@@ -134,7 +134,7 @@ func (state *HADiscoveryActor) WaitingInfoReceive(ctx actor.Context) {
 
 		inverterDevice := domain.InverterDevice(msg.Inverter)
 		inverterDevice.ViaDevice = bridgeDevice.Id
-		inverterSensors := domain.InverterBaseSensors(inverterDevice, msg.Inverter, state.config.TrackHousePower && msg.ACMeter != nil)
+		inverterSensors := domain.InverterBaseSensors(inverterDevice, msg.Inverter, state.config.MonitorConfig.TrackHousePower && msg.ACMeter != nil)
 		for i := range inverterSensors {
 			if i > 0 {
 				inverterSensors[i].Device = domain.IdDevice(inverterDevice)

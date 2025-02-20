@@ -19,11 +19,18 @@ func LoadTestConfig() config.Config {
 			Host: "localhost",
 			Port: 1883,
 		},
-		PowerFlowPollIntervalMillis:        5000,
-		TrackHousePower:                    true,
-		MaxImportPower:                     4000,
-		BatteryControlRevertTimeoutSeconds: 10,
-		FeedInControlRevertTimeoutSeconds:  10,
-		Port:                               8080,
+		BatteryControlConfig: config.BatteryControlConfig{
+			ControlIntervalMillis: 10000,
+			StartPowerThreshold:   500,
+			MaxRatePowerIncrease:  800,
+		},
+		GridConfig: config.GridConfig{
+			MaxImportPower: 4000,
+		},
+		MonitorConfig: config.MonitorConfig{
+			TrackHousePower:    true,
+			PollIntervalMillis: 5000,
+		},
+		Port: 8080,
 	}
 }

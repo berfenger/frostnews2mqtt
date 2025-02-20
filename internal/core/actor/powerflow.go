@@ -57,9 +57,9 @@ func (state *PowerFlowActor) StartingReceive(ctx actor.Context) {
 	case *actor.Started:
 		state.logger.Debug("powerflow@starting started")
 
-		if state.config.PowerFlowPollIntervalMillis > 0 {
+		if state.config.MonitorConfig.PollIntervalMillis > 0 {
 			state.scheduler = scheduler.NewTimerScheduler(ctx)
-			state.scheduler.RequestOnce(time.Duration(state.config.PowerFlowPollIntervalMillis)*time.Millisecond, ctx.Self(), powerFlowTick{})
+			state.scheduler.RequestOnce(time.Duration(state.config.MonitorConfig.PollIntervalMillis)*time.Millisecond, ctx.Self(), powerFlowTick{})
 		}
 
 		PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.modbusActor, domain.GetDevicesInfoRequest{}, 1*time.Second), func(err error) any {
@@ -120,7 +120,7 @@ func (state *PowerFlowActor) DefaultReceive(ctx actor.Context) {
 		}
 
 		// schedule next tick
-		state.scheduler.RequestOnce(time.Duration(state.config.PowerFlowPollIntervalMillis)*time.Millisecond, ctx.Self(), powerFlowTick{})
+		state.scheduler.RequestOnce(time.Duration(state.config.MonitorConfig.PollIntervalMillis)*time.Millisecond, ctx.Self(), powerFlowTick{})
 		state.behavior.BecomeStacked(state.WaitingPFReceive)
 	case domain.GetInverterStateResponse:
 		state.logger.Debug("powerflow@default GetInverterStateResponse")
@@ -169,7 +169,7 @@ func (state *PowerFlowActor) WaitingPFReceive(ctx actor.Context) {
 			}
 		}
 		// House power
-		if state.config.TrackHousePower && msg.Inverter != nil && msg.ACMeter != nil {
+		if state.config.MonitorConfig.TrackHousePower && msg.Inverter != nil && msg.ACMeter != nil {
 			evs := events.HousePowerUpdateEvents(msg.Inverter, msg.ACMeter)
 			for _, ev := range evs {
 				state.eventStream.Publish(ev)

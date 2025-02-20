@@ -14,8 +14,14 @@ inverter_modbus_tcp:
   inverter_id: 0
   ignore_fronius: false
 
-power_flow_poll_interval_millis: 5000
-track_house_power: true
-max_import_power: 4000
-battery_control_revert_timeout_seconds: 30
-feedin_control_revert_timeout_seconds: 30
+monitor:
+  poll_interval_millis: 5000
+  track_house_power: true
+
+grid:
+  max_import_power: 4000
+
+battery_control:
+  control_interval_millis: 20000
+  start_power_threshold: 500
+  max_rate_power_increase: 800
