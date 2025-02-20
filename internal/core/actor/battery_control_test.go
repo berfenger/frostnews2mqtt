@@ -25,8 +25,8 @@ func TestBatteryControlFlow(t *testing.T) {
 	context := as.Root
 
 	cfg := config.Config{}
-	cfg.MaxImportPower = 4000
-	cfg.BatteryControlRevertTimeoutSeconds = 10
+	cfg.GridConfig.MaxImportPower = 4000
+	cfg.BatteryControlConfig.ControlIntervalMillis = 10000
 
 	// modbus actor
 	modbusProps := actor.PropsFromProducer(func() actor.Actor {

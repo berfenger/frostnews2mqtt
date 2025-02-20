@@ -44,7 +44,7 @@ func NewBatteryControlActor(config *config.Config, modbusActor *actor.PID, event
 		stash:          &Stash{},
 		logger:         ActorLogger(domain.ACTOR_ID_BATTERY_CONTROL, logger),
 		eventStream:    eventStream,
-		maxImportPower: uint32(config.MaxImportPower),
+		maxImportPower: uint32(config.GridConfig.MaxImportPower),
 		targetSOC:      100,
 		ActorWithStates: ActorWithStates{
 			Behavior: actor.NewBehavior(),
@@ -200,7 +200,7 @@ func NewBCChargingState(fromActor *BatteryControlActorNew, hold bool) BCCharging
 			MaxChargePowerWatt:    -1,
 			MinDischargePowerWatt: -1,
 			MaxDischargePowerWatt: -1,
-			RevertTimeSeconds:     uint32(fromActor.config.BatteryControlRevertTimeoutSeconds),
+			RevertTimeSeconds:     uint32(fromActor.config.BatteryControlConfig.ControlIntervalMillis / 1000),
 		},
 	}
 }
@@ -255,18 +255,30 @@ func (state BCChargingState) Receive(ctx actor.Context) {
 			var prevPowerValue = state.params.MinChargePowerWatt
 			var newPowerValue float64 = float64(prevPowerValue)
 			if prevPowerValue == -1 {
-				// temp disable, check if should be restarted
+				// track house power consumption
 				houseConsumption := msg.InverterPowerFlow.ACPowerWatt + msg.ACMeterPowerFlow.CurrentPowerFlowWatt
-				availablePower := float64(state.actor.maxImportPower) - houseConsumption - POWER_IMPORT_SAFETY_MARGIN_W
-				if availablePower > float64(state.actor.maxImportPower)*0.33 {
-					newPowerValue = float64(state.actor.maxImportPower) * 0.2
+
+				/* powerBudget = grid.maxImportPower + PV power - House consumption
+				 * Battery should be ignored because while charging the battery,
+				 * it cannot be discharged at the same time to meet house power requirements
+				 */
+				realPVPower := math.Max(0, msg.InverterPowerFlow.PVPowerWatt)
+				powerBudget := float64(state.actor.maxImportPower) - POWER_IMPORT_SAFETY_MARGIN_W // max import from grid
+				powerBudget += realPVPower                                                        // + solar
+				powerBudget -= houseConsumption                                                   // - house consumption
+
+				// to start, powerBudget should be greater than solar production
+				if powerBudget > realPVPower &&
+					powerBudget > float64(state.actor.config.BatteryControlConfig.StartPowerThreshold) {
+					// newPowerValue = MIN(MAX(maxRate, PVPower), powerBudget)
+					newPowerValue = math.Min(math.Max(float64(state.actor.config.BatteryControlConfig.MaxRatePowerIncrease), realPVPower), powerBudget)
 				} else {
 					newPowerValue = -1
 				}
 			} else {
 				// adjust charge power
 				availablePower := float64(state.actor.maxImportPower) - msg.ACMeterPowerFlow.CurrentImportPowerWatt - POWER_IMPORT_SAFETY_MARGIN_W
-				newPowerValue += math.Min(float64(state.actor.maxImportPower)*0.2, availablePower)
+				newPowerValue += math.Min(float64(state.actor.config.BatteryControlConfig.MaxRatePowerIncrease), availablePower)
 			}
 
 			// check bounds
@@ -361,7 +373,7 @@ func NewBCHoldingState(fromActor *BatteryControlActorNew) BCHoldingState {
 			MaxChargePowerWatt:    -1,
 			MinDischargePowerWatt: -1,
 			MaxDischargePowerWatt: 0,
-			RevertTimeSeconds:     uint32(fromActor.config.BatteryControlRevertTimeoutSeconds),
+			RevertTimeSeconds:     uint32(fromActor.config.BatteryControlConfig.ControlIntervalMillis / 1000),
 		},
 	}
 }
