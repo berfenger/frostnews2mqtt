@@ -64,7 +64,7 @@ func NewMQTTActor(config *config.Config, eventStream *eventstream.EventStream, l
 		config:      config,
 		behavior:    actor.NewBehavior(),
 		stash:       &Stash{},
-		logger:      ActorLogger("mqtt", logger),
+		logger:      ActorLogger(domain.ACTOR_ID_MQTT, logger),
 		eventStream: eventStream,
 	}
 	act.behavior.Become(act.StartingReceive)
@@ -127,7 +127,7 @@ func (state *MQTTActor) StartingReceive(ctx actor.Context) {
 		state.stash.UnstashAll(ctx)
 	case MQTTConnectionLost:
 		// if connection lost, stop actor and let supervisor decide
-		state.logger.Debug("mqtt@starting connection lost", zap.Error(msg.Error))
+		state.logger.Error("mqtt@starting connection lost", zap.Error(msg.Error))
 		panic(msg.Error)
 	case *actor.Restarting:
 		state.stop()
@@ -219,7 +219,7 @@ func (state *MQTTActor) event2MQTTMessage(event any) *rawMessage {
 func (state *MQTTActor) publishSensorValue(ctx actor.Context, event any) {
 	msg := state.event2MQTTMessage(event)
 	if msg != nil {
-		state.logger.Sugar().Debug("mqtt@publish: sensor publish %s => %s", msg.topic, msg.message)
+		state.logger.Sugar().Debugf("mqtt@publish: sensor publish %s => %s", msg.topic, msg.message)
 		state.client.Publish(msg.topic, msg.message, 1, msg.retain, func(err error) {
 			ctx.Send(ctx.Self(), publishResult{Error: err})
 		}, 5*time.Second)
