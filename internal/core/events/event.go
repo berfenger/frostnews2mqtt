@@ -111,16 +111,16 @@ func InverterStorageStateToUpdateEvents(is *sunspec_modbus.StorageState) []any {
 		SensorUpdateEventMixIn: SensorUpdateEventMixIn{
 			Id: SENSOR_ID_BATTERY_MAX_CAPACITY,
 		},
-		Value:    float64(is.MaxCapacityWatt),
-		Decimals: 2,
+		Value:    float64(is.MaxCapacityWatt) / 1000,
+		Decimals: 3,
 	})
 	// Battery Current Capacity
 	events = append(events, FloatSensorUpdateEvent{
 		SensorUpdateEventMixIn: SensorUpdateEventMixIn{
 			Id: SENSOR_ID_BATTERY_CURRENT_CAPACITY,
 		},
-		Value:    float64(is.CurrentCapacityWatt),
-		Decimals: 2,
+		Value:    float64(is.CurrentCapacityWatt) / 1000,
+		Decimals: 3,
 	})
 	// Battery Charge State
 	events = append(events, TextSensorUpdateEvent{
