@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/asynkron/protoactor-go/actor"
-	"github.com/asynkron/protoactor-go/eventstream"
 	"github.com/asynkron/protoactor-go/scheduler"
 	"go.uber.org/zap"
 )
@@ -26,8 +25,8 @@ type BatteryControlActorNew struct {
 	scheduler      *scheduler.TimerScheduler
 	stash          *actorutil.Stash
 	modbusActor    *actor.PID
+	mqttActor      *actor.PID
 	config         *config.Config
-	eventStream    *eventstream.EventStream
 	maxImportPower uint32
 	targetSOC      uint8
 
@@ -37,13 +36,13 @@ type BatteryControlActorNew struct {
 type batteryControlTick struct {
 }
 
-func NewBatteryControlActor(config *config.Config, modbusActor *actor.PID, eventStream *eventstream.EventStream, logger *zap.Logger) *BatteryControlActorNew {
+func NewBatteryControlActor(config *config.Config, modbusActor *actor.PID, mqttActor *actor.PID, logger *zap.Logger) *BatteryControlActorNew {
 	act := &BatteryControlActorNew{
 		config:         config,
 		modbusActor:    modbusActor,
+		mqttActor:      mqttActor,
 		stash:          &actorutil.Stash{},
 		logger:         actorutil.ActorLogger(domain.ACTOR_ID_BATTERY_CONTROL, logger),
-		eventStream:    eventStream,
 		maxImportPower: uint32(config.GridConfig.MaxImportPower),
 		targetSOC:      100,
 		ActorWithStates: actorutil.ActorWithStates{
@@ -169,7 +168,7 @@ func (state BCIdleState) Receive(ctx actor.Context) {
 			}
 		case domain.BatteryControlSetTargetSoCRequest:
 			state.actor.logger.Sugar().Debugf("battery_control@idle: cmd setTargetSoC %d", cmd.TargetSoC)
-			state.actor.setChargeTargetSoC(uint8(cmd.TargetSoC))
+			state.actor.setChargeTargetSoC(ctx, uint8(cmd.TargetSoC))
 		}
 	case domain.SetStorageControlResponse:
 		// can be received after exiting holding or charging
@@ -184,8 +183,8 @@ func (state BCIdleState) Receive(ctx actor.Context) {
 }
 
 func (state BCIdleState) OnEnter(ctx actor.Context) BCIdleState {
-	state.actor.updateSwitchState(false, false)
-	state.actor.updateChargeTargetSoC(uint8(state.actor.targetSOC))
+	state.actor.updateSwitchState(ctx, false, false)
+	state.actor.updateChargeTargetSoC(ctx, uint8(state.actor.targetSOC))
 	return state
 }
 
@@ -301,11 +300,11 @@ func (state BCChargingState) Receive(ctx actor.Context) {
 			if cmd.Enable && !state.hold {
 				state.hold = true
 				state.actor.Become(state)
-				state.actor.updateHoldSwitchState(true)
+				state.actor.updateHoldSwitchState(ctx, true)
 			} else if !cmd.Enable && state.hold {
 				state.hold = false
 				state.actor.Become(state)
-				state.actor.updateHoldSwitchState(false)
+				state.actor.updateHoldSwitchState(ctx, false)
 			}
 		case domain.BatteryControlChargeRequest:
 			state.actor.logger.Sugar().Debugf("battery_control@charging: cmd charge %t", cmd.Enable)
@@ -314,7 +313,7 @@ func (state BCChargingState) Receive(ctx actor.Context) {
 			}
 		case domain.BatteryControlSetTargetSoCRequest:
 			state.actor.logger.Sugar().Debugf("battery_control@charging: cmd setTargetSoC %d", cmd.TargetSoC)
-			state.actor.setChargeTargetSoC(uint8(cmd.TargetSoC))
+			state.actor.setChargeTargetSoC(ctx, uint8(cmd.TargetSoC))
 		}
 	default:
 		state.actor.logger.Debug("battery_control@charging: recv", zap.String("type", fmt.Sprintf("%T", msg)))
@@ -342,11 +341,11 @@ func (state BCChargingState) Exit(ctx actor.Context) {
 			actor: state.actor,
 		}.OnEnterAction(ctx, state.params))
 	}
-	state.actor.updateChargeSwitchState(false)
+	state.actor.updateChargeSwitchState(ctx, false)
 }
 
 func (state BCChargingState) OnEnter(ctx actor.Context) BCChargingState {
-	state.actor.updateChargeSwitchState(true)
+	state.actor.updateChargeSwitchState(ctx, true)
 	return state
 }
 
@@ -427,7 +426,7 @@ func (state BCHoldingState) Receive(ctx actor.Context) {
 			}
 		case domain.BatteryControlSetTargetSoCRequest:
 			state.actor.logger.Sugar().Debugf("battery_control@holding: cmd setTargetSoC %d", cmd.TargetSoC)
-			state.actor.setChargeTargetSoC(uint8(cmd.TargetSoC))
+			state.actor.setChargeTargetSoC(ctx, uint8(cmd.TargetSoC))
 		}
 	default:
 		state.actor.logger.Debug("battery_control@holding: recv", zap.String("type", fmt.Sprintf("%T", msg)))
@@ -435,7 +434,7 @@ func (state BCHoldingState) Receive(ctx actor.Context) {
 }
 
 func (state BCHoldingState) OnEnter(ctx actor.Context) BCHoldingState {
-	state.actor.updateHoldSwitchState(true)
+	state.actor.updateHoldSwitchState(ctx, true)
 	return state
 }
 
@@ -595,29 +594,35 @@ func (state BCAwaitPowerFlowResponseState) OnEnterAction(ctx actor.Context) BCAw
 
 // Other actor function helpers
 
-func (state *BatteryControlActorNew) setChargeTargetSoC(targetSOC uint8) {
+func (state *BatteryControlActorNew) setChargeTargetSoC(ctx actor.Context, targetSOC uint8) {
 	state.targetSOC = targetSOC
-	state.updateChargeTargetSoC(targetSOC)
+	state.updateChargeTargetSoC(ctx, targetSOC)
 }
 
-func (state *BatteryControlActorNew) updateSwitchState(controlHold, controlCharge bool) {
-	state.updateHoldSwitchState(controlHold)
-	state.updateChargeSwitchState(controlCharge)
+func (state *BatteryControlActorNew) updateSwitchState(ctx actor.Context, controlHold, controlCharge bool) {
+	state.updateHoldSwitchState(ctx, controlHold)
+	state.updateChargeSwitchState(ctx, controlCharge)
 }
 
-func (state *BatteryControlActorNew) updateHoldSwitchState(switchState bool) {
+func (state *BatteryControlActorNew) updateHoldSwitchState(ctx actor.Context, switchState bool) {
 	event := events.BatteryControlHoldSwitchUpdateEvents(switchState)
-	state.eventStream.Publish(event)
+	state.sendEventToMQTT(ctx, event)
 }
 
-func (state *BatteryControlActorNew) updateChargeSwitchState(switchState bool) {
+func (state *BatteryControlActorNew) updateChargeSwitchState(ctx actor.Context, switchState bool) {
 	event := events.BatteryControlChargeSwitchUpdateEvents(switchState)
-	state.eventStream.Publish(event)
+	state.sendEventToMQTT(ctx, event)
 }
 
-func (state *BatteryControlActorNew) updateChargeTargetSoC(targetSoC uint8) {
+func (state *BatteryControlActorNew) updateChargeTargetSoC(ctx actor.Context, targetSoC uint8) {
 	events := events.BatteryControlSetTargetSoCUpdateEvents(targetSoC)
 	for _, ev := range events {
-		state.eventStream.Publish(ev)
+		state.sendEventToMQTT(ctx, ev)
 	}
+}
+
+func (state *BatteryControlActorNew) sendEventToMQTT(ctx actor.Context, ev domain.SensorUpdateEvent) {
+	ctx.Send(state.mqttActor, domain.PublishSensorUpdateRequest{
+		Event: ev,
+	})
 }

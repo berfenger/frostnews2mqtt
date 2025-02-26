@@ -69,16 +69,24 @@ type GetStorageControlPowerFlowResponse struct {
 	InverterPowerFlow *sunspec_modbus.InverterPowerFlow
 }
 
-// type CommandErrorResponse struct {
-// 	Error string
-// }
-
-type PublishEventRequest struct {
+type PublishMessageRequest struct {
 	ActorRequestMixIn
-	Event SensorUpdateEvent
+	Topic   string
+	Payload string
+	Retain  bool
 }
 
-type PublishEventResponse struct {
+type PublishMessageResponse struct {
+	ActorResponseMixIn
+}
+
+type PublishSensorUpdateRequest struct {
+	ActorRequestMixIn
+	Retain bool
+	Event  SensorUpdateEvent
+}
+
+type PublishSensorUpdateResponse struct {
 	ActorResponseMixIn
 }
 

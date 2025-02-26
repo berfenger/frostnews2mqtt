@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/asynkron/protoactor-go/actor"
-	"github.com/asynkron/protoactor-go/eventstream"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 )
@@ -28,8 +27,8 @@ func TestMasterActor(t *testing.T) {
 	props := actor.PropsFromProducer(func() actor.Actor {
 		return NewMasterOfPuppetsActor(cfg, func() *adactor.ModbusActor {
 			return adactor.NewModbusActor(&sunspec_modbus.TestInverterModbusReader{}, sunspec_modbus.TestACMeterModbusReader{}, logger)
-		}, func(es *eventstream.EventStream) *adactor.MQTTActor {
-			return adactor.NewTestMQTTActor(&cfg, es, logger)
+		}, func() *adactor.MQTTActor {
+			return adactor.NewTestMQTTActor(&cfg, logger)
 		}, logger)
 	})
 	pid, err := context.SpawnNamed(props, "master")

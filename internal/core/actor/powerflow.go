@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/asynkron/protoactor-go/actor"
-	"github.com/asynkron/protoactor-go/eventstream"
 	"github.com/asynkron/protoactor-go/scheduler"
 	"go.uber.org/zap"
 )
@@ -20,8 +19,8 @@ type PowerFlowActor struct {
 	scheduler *scheduler.TimerScheduler
 
 	modbusActor       *actor.PID
+	mqttActor         *actor.PID
 	config            *config.Config
-	eventStream       *eventstream.EventStream
 	hasStorage        bool
 	currentStateCount uint
 	stateCount        uint
@@ -32,14 +31,14 @@ type PowerFlowActor struct {
 type powerFlowTick struct {
 }
 
-func NewPowerFlowActor(config *config.Config, modbusActor *actor.PID, eventStream *eventstream.EventStream, logger *zap.Logger) *PowerFlowActor {
+func NewPowerFlowActor(config *config.Config, modbusActor *actor.PID, mqttActor *actor.PID, logger *zap.Logger) *PowerFlowActor {
 	act := &PowerFlowActor{
 		config:            config,
 		modbusActor:       modbusActor,
+		mqttActor:         mqttActor,
 		behavior:          actor.NewBehavior(),
 		stash:             &actorutil.Stash{},
-		logger:            actorutil.ActorLogger("powerflow", logger),
-		eventStream:       eventStream,
+		logger:            actorutil.ActorLogger(domain.ACTOR_ID_POWERFLOW, logger),
 		hasStorage:        false,
 		currentStateCount: 2,
 		stateCount:        2,
@@ -127,7 +126,7 @@ func (state *PowerFlowActor) DefaultReceive(ctx actor.Context) {
 		if !msg.HasResponseError() && msg.InverterState != nil {
 			evs := events.InverterStateToUpdateEvents(msg.InverterState)
 			for _, ev := range evs {
-				state.eventStream.Publish(ev)
+				state.sendEventToMQTT(ctx, ev)
 			}
 		}
 	case domain.GetStorageStateResponse:
@@ -135,7 +134,7 @@ func (state *PowerFlowActor) DefaultReceive(ctx actor.Context) {
 		if !msg.HasResponseError() && msg.StorageState != nil {
 			evs := events.InverterStorageStateToUpdateEvents(msg.StorageState)
 			for _, ev := range evs {
-				state.eventStream.Publish(ev)
+				state.sendEventToMQTT(ctx, ev)
 			}
 		}
 	default:
@@ -158,21 +157,21 @@ func (state *PowerFlowActor) WaitingPFReceive(ctx actor.Context) {
 		if msg.Inverter != nil {
 			evs := events.InverterPowerFlowToUpdateEvents(msg.Inverter)
 			for _, ev := range evs {
-				state.eventStream.Publish(ev)
+				state.sendEventToMQTT(ctx, ev)
 			}
 		}
 		// ACMeter power flow
 		if msg.ACMeter != nil {
 			evs := events.ACMeterPowerFlowToUpdateEvents(msg.ACMeter)
 			for _, ev := range evs {
-				state.eventStream.Publish(ev)
+				state.sendEventToMQTT(ctx, ev)
 			}
 		}
 		// House power
 		if state.config.MonitorConfig.TrackHousePower && msg.Inverter != nil && msg.ACMeter != nil {
 			evs := events.HousePowerUpdateEvents(msg.Inverter, msg.ACMeter)
 			for _, ev := range evs {
-				state.eventStream.Publish(ev)
+				state.sendEventToMQTT(ctx, ev)
 			}
 		}
 
@@ -201,4 +200,10 @@ func (state *PowerFlowActor) WaitingInfoReceive(ctx actor.Context) {
 		state.logger.Debug("powerflow@waitingInfo: stash", zap.String("type", fmt.Sprintf("%T", msg)))
 		state.stash.Stash(ctx, msg)
 	}
+}
+
+func (state *PowerFlowActor) sendEventToMQTT(ctx actor.Context, ev domain.SensorUpdateEvent) {
+	ctx.Send(state.mqttActor, domain.PublishSensorUpdateRequest{
+		Event: ev,
+	})
 }

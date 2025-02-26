@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/asynkron/protoactor-go/actor"
-	"github.com/asynkron/protoactor-go/eventstream"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 )
@@ -35,9 +34,13 @@ func TestBatteryControlFlow(t *testing.T) {
 	})
 	modbusActorPID := context.Spawn(modbusProps)
 
+	// event actor
+	evProps := actor.PropsFromProducer(func() actor.Actor { return adactor.NewTestMQTTActor(&cfg, logger) })
+	eventActorPID := context.Spawn(evProps)
+
 	// batteryControl actor
 	battCtrlProps := actor.PropsFromProducer(func() actor.Actor {
-		return NewBatteryControlActor(&cfg, modbusActorPID, &eventstream.EventStream{}, logger)
+		return NewBatteryControlActor(&cfg, modbusActorPID, eventActorPID, logger)
 	})
 	bcActorPID := context.Spawn(battCtrlProps)
 

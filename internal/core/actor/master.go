@@ -11,11 +11,10 @@ import (
 	"time"
 
 	"github.com/asynkron/protoactor-go/actor"
-	"github.com/asynkron/protoactor-go/eventstream"
 	"go.uber.org/zap"
 )
 
-type MQTTActorProvider func(*eventstream.EventStream) *adactor.MQTTActor
+type MQTTActorProvider func() *adactor.MQTTActor
 
 type ModbusActorProvider func() *adactor.ModbusActor
 
@@ -25,7 +24,6 @@ type MasterOfPuppetsActor struct {
 	stash    *actorutil.Stash
 
 	currentHealthCheck  healthCheckResult
-	eventStream         *eventstream.EventStream
 	modbusActor         *actor.PID
 	mqttActor           *actor.PID
 	powerFlowActor      *actor.PID
@@ -49,7 +47,6 @@ func NewMasterOfPuppetsActor(config config.Config, modbusActorProvider ModbusAct
 		behavior:            actor.NewBehavior(),
 		stash:               &actorutil.Stash{},
 		logger:              actorutil.ActorLogger("master", logger),
-		eventStream:         &eventstream.EventStream{},
 		modbusActorProvider: modbusActorProvider,
 		mqttActorProvider:   mqttActorProvider,
 	}
@@ -226,7 +223,7 @@ func (state *MasterOfPuppetsActor) startPowerFlowActor(ctx actor.Context) (*acto
 	supervisor := actor.NewAllForOneStrategy(1, 10*time.Second, decider)
 
 	powerFlowProps := actor.PropsFromProducer(func() actor.Actor {
-		return NewPowerFlowActor(&state.config, state.modbusActor, state.eventStream, state.logger)
+		return NewPowerFlowActor(&state.config, state.modbusActor, state.mqttActor, state.logger)
 	}, actor.WithSupervisor(supervisor))
 	powerFlowActorPID, err := ctx.SpawnNamed(powerFlowProps, domain.ACTOR_ID_POWERFLOW)
 	if err != nil {
@@ -260,7 +257,7 @@ func (state *MasterOfPuppetsActor) startMQTTActor(ctx actor.Context) (*actor.PID
 	supervisor := actor.NewExponentialBackoffStrategy(10*time.Second, 1*time.Second)
 
 	mqttProps := actor.PropsFromProducer(func() actor.Actor {
-		return state.mqttActorProvider(state.eventStream)
+		return state.mqttActorProvider()
 	}, actor.WithSupervisor(supervisor))
 	mqttActorPID, err := ctx.SpawnNamed(mqttProps, domain.ACTOR_ID_MQTT)
 	if err != nil {
@@ -279,7 +276,7 @@ func (state *MasterOfPuppetsActor) startBatteryControlActor(ctx actor.Context) (
 	supervisor := actor.NewOneForOneStrategy(1, 10*time.Second, decider)
 
 	battControlProps := actor.PropsFromProducer(func() actor.Actor {
-		return NewBatteryControlActor(&state.config, state.modbusActor, state.eventStream, state.logger)
+		return NewBatteryControlActor(&state.config, state.modbusActor, state.mqttActor, state.logger)
 	}, actor.WithSupervisor(supervisor))
 	battControlPID, err := ctx.SpawnNamed(battControlProps, domain.ACTOR_ID_BATTERY_CONTROL)
 	if err != nil {

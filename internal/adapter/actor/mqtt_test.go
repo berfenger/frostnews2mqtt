@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/asynkron/protoactor-go/actor"
-	"github.com/asynkron/protoactor-go/eventstream"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 )
@@ -23,9 +22,7 @@ func TestMQTTActor(t *testing.T) {
 
 	context := as.Root
 
-	es := eventstream.EventStream{}
-
-	props := actor.PropsFromProducer(func() actor.Actor { return NewTestMQTTActor(&cfg, &es, logger) })
+	props := actor.PropsFromProducer(func() actor.Actor { return NewTestMQTTActor(&cfg, logger) })
 	pid := context.Spawn(props)
 
 	time.Sleep(2 * time.Second)
@@ -40,17 +37,22 @@ func TestMQTTActor(t *testing.T) {
 	assert.True(t, ok)
 	assert.NotNil(t, resp)
 
-	es.Publish(domain.FloatSensorUpdateEvent{
-		SensorUpdateEventMixIn: domain.SensorUpdateEventMixIn{
-			Id: domain.SENSOR_ID_INVERTER_AC_POWER_FLOW,
+	context.Send(pid, domain.PublishSensorUpdateRequest{
+		Event: domain.FloatSensorUpdateEvent{
+			SensorUpdateEventMixIn: domain.SensorUpdateEventMixIn{
+				Id: domain.SENSOR_ID_INVERTER_AC_POWER_FLOW,
+			},
+			Value: 245,
 		},
-		Value: 245,
 	})
-	es.Publish(domain.FloatSensorUpdateEvent{
-		SensorUpdateEventMixIn: domain.SensorUpdateEventMixIn{
-			Id: domain.SENSOR_ID_INVERTER_PV_POWER,
+
+	context.Send(pid, domain.PublishSensorUpdateRequest{
+		Event: domain.FloatSensorUpdateEvent{
+			SensorUpdateEventMixIn: domain.SensorUpdateEventMixIn{
+				Id: domain.SENSOR_ID_INVERTER_PV_POWER,
+			},
+			Value: 345.32,
 		},
-		Value: 345.32,
 	})
 
 	time.Sleep(1 * time.Second)

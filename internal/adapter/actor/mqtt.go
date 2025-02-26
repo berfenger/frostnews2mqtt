@@ -6,27 +6,20 @@ import (
 	"frostnews2mqtt/internal/config"
 	"frostnews2mqtt/internal/core/domain"
 	"frostnews2mqtt/internal/mqtt"
-	. "frostnews2mqtt/internal/util/actorutil"
+	"frostnews2mqtt/internal/util/actorutil"
 	"time"
 
 	"github.com/asynkron/protoactor-go/actor"
-	"github.com/asynkron/protoactor-go/eventstream"
 	pahomqtt "github.com/eclipse/paho.mqtt.golang"
 	"go.uber.org/zap"
 )
 
 type MQTTActor struct {
-	config         *config.Config
-	behavior       actor.Behavior
-	stash          *Stash
-	client         *mqtt.MQTTClient
-	eventStream    *eventstream.EventStream
-	eventStreamSub *eventstream.Subscription
-	logger         *zap.Logger
-}
-
-type OnEventStreamMessage struct {
-	message any
+	config   *config.Config
+	behavior actor.Behavior
+	stash    *actorutil.Stash
+	client   *mqtt.MQTTClient
+	logger   *zap.Logger
 }
 
 type MQTTConnected struct {
@@ -39,14 +32,9 @@ type MQTTConnectionLost struct {
 	Error error
 }
 
-// type PublishHADiscovery struct {
-// 	Sensors      []events.GenericSensor
-// 	Switches     []events.GenericSwitch
-// 	InputNumbers []events.GenericInputNumber
-// }
-
 type publishResult struct {
-	Error error
+	ReplyTo *actor.PID
+	Error   error
 }
 
 type ParsedCommand struct {
@@ -59,13 +47,12 @@ type rawMessage struct {
 	retain  bool
 }
 
-func NewMQTTActor(config *config.Config, eventStream *eventstream.EventStream, logger *zap.Logger) *MQTTActor {
+func NewMQTTActor(config *config.Config, logger *zap.Logger) *MQTTActor {
 	act := &MQTTActor{
-		config:      config,
-		behavior:    actor.NewBehavior(),
-		stash:       &Stash{},
-		logger:      ActorLogger(domain.ACTOR_ID_MQTT, logger),
-		eventStream: eventStream,
+		config:   config,
+		behavior: actor.NewBehavior(),
+		stash:    &actorutil.Stash{},
+		logger:   actorutil.ActorLogger(domain.ACTOR_ID_MQTT, logger),
 	}
 	act.behavior.Become(act.StartingReceive)
 	return act
@@ -99,13 +86,6 @@ func (state *MQTTActor) StartingReceive(ctx actor.Context) {
 		state.logger.Debug("mqtt@starting connected")
 
 		state.client.Publish(state.client.BridgeStateTopic(), mqtt.MQTT_PAYLOAD_ONLINE, 0, true, func(error) {}, 500*time.Millisecond)
-
-		// subscribe to eventStream
-		state.eventStreamSub = state.eventStream.Subscribe(func(value any) {
-			ctx.Send(ctx.Self(), OnEventStreamMessage{
-				message: value,
-			})
-		})
 
 		// subscribe to MQTT command topic
 		state.client.SubscribeToCommandTopic(func(c pahomqtt.Client, m pahomqtt.Message) {
@@ -155,10 +135,13 @@ func (state *MQTTActor) DefaultReceive(ctx actor.Context) {
 		// route command to parent
 		state.logger.Debug("mqtt@default parsedCommand", zap.Any("command", msg.Command))
 		ctx.Send(ctx.Parent(), msg)
-	case OnEventStreamMessage:
+	case domain.PublishMessageRequest:
+		state.logger.Debug("mqtt@default PublishMessageRequest", zap.Any("message", msg))
+		state.publishMessage(ctx, msg.Topic, msg.Payload, msg.Retain, actorutil.ForRequest(msg).ReplyTo(ctx))
+	case domain.PublishSensorUpdateRequest:
 		// receive message from event bus and publish to MQTT if needed
-		state.logger.Debug("mqtt@default OnEventStreamMessage", zap.String("type", fmt.Sprintf("%T", msg.message)))
-		state.publishSensorValue(ctx, msg.message)
+		state.logger.Debug("mqtt@default PublishSensorUpdateRequest", zap.String("type", fmt.Sprintf("%T", msg.Event)))
+		state.publishSensorValue(ctx, msg.Event, msg.Retain)
 	case domain.PublishDiscoveryRequest:
 		state.logger.Debug("mqtt@default PublishHADiscovery")
 		state.PublishHomeAssistantDiscovery(ctx, msg.Sensors, msg.Switches, msg.InputNumbers)
@@ -216,23 +199,60 @@ func (state *MQTTActor) event2MQTTMessage(event any) *rawMessage {
 	}
 }
 
-func (state *MQTTActor) publishSensorValue(ctx actor.Context, event any) {
+func (state *MQTTActor) publishSensorValue(ctx actor.Context, event domain.SensorUpdateEvent, retain bool) {
 	msg := state.event2MQTTMessage(event)
 	if msg != nil {
 		state.logger.Sugar().Debugf("mqtt@publish: sensor publish %s => %s", msg.topic, msg.message)
-		state.client.Publish(msg.topic, msg.message, 1, msg.retain, func(err error) {
+		state.client.Publish(msg.topic, msg.message, 1, msg.retain || retain, func(err error) {
 			ctx.Send(ctx.Self(), publishResult{Error: err})
 		}, 5*time.Second)
-		state.behavior.BecomeStacked(state.PublishingReceive)
+		state.behavior.BecomeStacked(state.EventPublishResultReceive)
 	}
 }
 
-func (state *MQTTActor) PublishingReceive(ctx actor.Context) {
+func (state *MQTTActor) publishMessage(ctx actor.Context, topic, payload string, retain bool, replyTo *actor.PID) {
+	state.logger.Sugar().Debugf("mqtt@publish: message publish %s => %s", topic, payload)
+	state.client.Publish(topic, payload, 1, retain, func(err error) {
+		ctx.Send(ctx.Self(), publishResult{ReplyTo: replyTo, Error: err})
+	}, 5*time.Second)
+	state.behavior.BecomeStacked(state.MessagePublishResultReceive)
+}
+
+func (state *MQTTActor) MessagePublishResultReceive(ctx actor.Context) {
 	switch msg := ctx.Message().(type) {
 	case publishResult:
 		// log error and return to default state
 		if msg.Error != nil {
 			state.logger.Error("mqtt@publishing could not publish a message", zap.Error(msg.Error))
+		}
+		if msg.ReplyTo != nil {
+			ctx.Send(msg.ReplyTo, domain.PublishMessageResponse{
+				ActorResponseMixIn: domain.ActorResponseMixIn{
+					ResponseError: msg.Error,
+				},
+			})
+		}
+		state.behavior.UnbecomeStacked()
+		state.stash.UnstashOldest(ctx)
+	default:
+		state.logger.Debug("mqtt@publishing stash", zap.String("type", fmt.Sprintf("%T", msg)))
+		state.stash.Stash(ctx, msg)
+	}
+}
+
+func (state *MQTTActor) EventPublishResultReceive(ctx actor.Context) {
+	switch msg := ctx.Message().(type) {
+	case publishResult:
+		// log error and return to default state
+		if msg.Error != nil {
+			state.logger.Error("mqtt@publishing could not publish a message", zap.Error(msg.Error))
+		}
+		if msg.ReplyTo != nil {
+			ctx.Send(msg.ReplyTo, domain.PublishSensorUpdateResponse{
+				ActorResponseMixIn: domain.ActorResponseMixIn{
+					ResponseError: msg.Error,
+				},
+			})
 		}
 		state.behavior.UnbecomeStacked()
 		state.stash.UnstashOldest(ctx)
@@ -280,10 +300,6 @@ func (state *MQTTActor) stop() {
 	if state.client != nil {
 		state.client.Disconnect(500 * time.Millisecond)
 	}
-	if state.eventStreamSub != nil {
-		state.eventStream.Unsubscribe(state.eventStreamSub)
-		state.eventStreamSub = nil
-	}
 }
 
 func bool2MQTTPayload(value bool) string {
@@ -295,13 +311,12 @@ func bool2MQTTPayload(value bool) string {
 }
 
 // Dummy actor
-func NewTestMQTTActor(config *config.Config, eventStream *eventstream.EventStream, logger *zap.Logger) *MQTTActor {
+func NewTestMQTTActor(config *config.Config, logger *zap.Logger) *MQTTActor {
 	act := &MQTTActor{
-		config:      config,
-		behavior:    actor.NewBehavior(),
-		stash:       &Stash{},
-		logger:      ActorLogger("mqtt", logger),
-		eventStream: eventStream,
+		config:   config,
+		behavior: actor.NewBehavior(),
+		stash:    &actorutil.Stash{},
+		logger:   actorutil.ActorLogger("mqtt", logger),
 	}
 	act.behavior.Become(act.DummyReceive)
 	return act
@@ -311,11 +326,6 @@ func (state *MQTTActor) DummyReceive(ctx actor.Context) {
 	switch msg := ctx.Message().(type) {
 	case *actor.Started:
 		state.client = mqtt.CreateMQTTClient(state.config, mqtt.OptsFromConfig(state.config), nil, nil)
-		state.eventStreamSub = state.eventStream.Subscribe(func(value any) {
-			ctx.Send(ctx.Self(), OnEventStreamMessage{
-				message: value,
-			})
-		})
 	case domain.ActorHealthRequest:
 		state.logger.Debug("mqtt@default ActorHealthRequest")
 		// respond health check request
@@ -324,11 +334,13 @@ func (state *MQTTActor) DummyReceive(ctx actor.Context) {
 			Healthy: true,
 			State:   "idle",
 		})
-	case OnEventStreamMessage:
-		// receive message from event bus and publish to MQTT if needed
-		state.logger.Debug("mqtt@default OnEventStreamMessage", zap.String("value", fmt.Sprintf("%T", msg.message)))
-		if rawMsg := state.event2MQTTMessage(msg.message); rawMsg != nil {
-			state.logger.Debug("mqtt@default publish", zap.String("value", rawMsg.message), zap.String("topic", rawMsg.topic))
+	case domain.PublishSensorUpdateRequest:
+		if msg.ReplyToRef != nil {
+			ctx.Respond(domain.PublishSensorUpdateResponse{})
+		}
+	case domain.PublishMessageRequest:
+		if msg.ReplyToRef != nil {
+			ctx.Respond(domain.PublishMessageResponse{})
 		}
 	}
 }

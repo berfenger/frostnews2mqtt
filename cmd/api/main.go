@@ -20,7 +20,6 @@ import (
 	"frostnews2mqtt/pkg/sunspec_modbus"
 
 	pactor "github.com/asynkron/protoactor-go/actor"
-	"github.com/asynkron/protoactor-go/eventstream"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 )
@@ -176,9 +175,6 @@ func initConfig() (*config.Config, error) {
 	if cfg.BatteryControlConfig.MaxRatePowerIncrease <= 0 {
 		return nil, errors.New("config param battery_control.max_rate_power_increase should be > 0")
 	}
-	if cfg.BatteryControlConfig.StartPowerThreshold < 0 {
-		return nil, errors.New("config param battery_control.start_power_threshold should be >= 0")
-	}
 	if cfg.GridConfig.MaxImportPower <= 0 {
 		return nil, errors.New("config param grid.max_import_power should be > 0")
 	}
@@ -213,8 +209,8 @@ func modbusActorProvider(cfg *config.Config, logger *zap.Logger) (actor.ModbusAc
 }
 
 func mqttActorProvider(cfg *config.Config, logger *zap.Logger) actor.MQTTActorProvider {
-	return func(es *eventstream.EventStream) *adactor.MQTTActor {
-		return adactor.NewMQTTActor(cfg, es, logger)
+	return func() *adactor.MQTTActor {
+		return adactor.NewMQTTActor(cfg, logger)
 	}
 }
 
