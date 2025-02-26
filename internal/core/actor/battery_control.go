@@ -6,7 +6,7 @@ import (
 	"frostnews2mqtt/internal/config"
 	"frostnews2mqtt/internal/core/domain"
 	"frostnews2mqtt/internal/core/events"
-	. "frostnews2mqtt/internal/util/actorutil"
+	"frostnews2mqtt/internal/util/actorutil"
 	"frostnews2mqtt/pkg/sunspec_modbus"
 	"math"
 	"time"
@@ -22,9 +22,9 @@ const (
 )
 
 type BatteryControlActorNew struct {
-	ActorWithStates
+	actorutil.ActorWithStates
 	scheduler      *scheduler.TimerScheduler
-	stash          *Stash
+	stash          *actorutil.Stash
 	modbusActor    *actor.PID
 	config         *config.Config
 	eventStream    *eventstream.EventStream
@@ -41,12 +41,12 @@ func NewBatteryControlActor(config *config.Config, modbusActor *actor.PID, event
 	act := &BatteryControlActorNew{
 		config:         config,
 		modbusActor:    modbusActor,
-		stash:          &Stash{},
-		logger:         ActorLogger(domain.ACTOR_ID_BATTERY_CONTROL, logger),
+		stash:          &actorutil.Stash{},
+		logger:         actorutil.ActorLogger(domain.ACTOR_ID_BATTERY_CONTROL, logger),
 		eventStream:    eventStream,
 		maxImportPower: uint32(config.GridConfig.MaxImportPower),
 		targetSOC:      100,
-		ActorWithStates: ActorWithStates{
+		ActorWithStates: actorutil.ActorWithStates{
 			Behavior: actor.NewBehavior(),
 		},
 	}
@@ -63,7 +63,7 @@ func (state *BatteryControlActorNew) Receive(context actor.Context) {
 // Starting state
 
 type BCStartingState struct {
-	ActorState
+	actorutil.ActorState
 	actor *BatteryControlActorNew
 }
 
@@ -78,7 +78,7 @@ func (state BCStartingState) Receive(ctx actor.Context) {
 
 		state.actor.scheduler = scheduler.NewTimerScheduler(ctx)
 
-		PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.actor.modbusActor, domain.GetDevicesInfoRequest{}, 1*time.Second), func(err error) any {
+		actorutil.PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.actor.modbusActor, domain.GetDevicesInfoRequest{}, 1*time.Second), func(err error) any {
 			return domain.GetDevicesInfoResponse{
 				ActorResponseMixIn: domain.ActorResponseMixIn{
 					ResponseError: err,
@@ -98,7 +98,7 @@ func (state BCStartingState) Receive(ctx actor.Context) {
 // Waiting info state
 
 type BCWaitingInfoState struct {
-	ActorState
+	actorutil.ActorState
 	actor *BatteryControlActorNew
 }
 
@@ -137,7 +137,7 @@ func (state BCWaitingInfoState) Receive(ctx actor.Context) {
 // Idle state
 
 type BCIdleState struct {
-	ActorState
+	actorutil.ActorState
 	actor *BatteryControlActorNew
 }
 
@@ -206,7 +206,7 @@ func NewBCChargingState(fromActor *BatteryControlActorNew, hold bool) BCCharging
 }
 
 type BCChargingState struct {
-	ActorState
+	actorutil.ActorState
 	actor      *BatteryControlActorNew
 	params     sunspec_modbus.StorageControlParams
 	hold       bool
@@ -379,7 +379,7 @@ func NewBCHoldingState(fromActor *BatteryControlActorNew) BCHoldingState {
 }
 
 type BCHoldingState struct {
-	ActorState
+	actorutil.ActorState
 	actor      *BatteryControlActorNew
 	params     sunspec_modbus.StorageControlParams
 	cancelTick scheduler.CancelFunc
@@ -467,7 +467,7 @@ func (state BCHoldingState) sendStorageControl(ctx actor.Context) BCHoldingState
 // Done state
 
 type BCDoneState struct {
-	ActorState
+	actorutil.ActorState
 	actor *BatteryControlActorNew
 }
 
@@ -491,7 +491,7 @@ func (state BCDoneState) Receive(ctx actor.Context) {
 // Await modbus response state
 
 type BCAwaitStorageControlResponseState struct {
-	ActorState
+	actorutil.ActorState
 	actor *BatteryControlActorNew
 }
 
@@ -528,7 +528,7 @@ func (state BCAwaitStorageControlResponseState) Receive(ctx actor.Context) {
 }
 
 func (state BCAwaitStorageControlResponseState) OnEnterAction(ctx actor.Context, params sunspec_modbus.StorageControlParams) BCAwaitStorageControlResponseState {
-	PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.actor.modbusActor,
+	actorutil.PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.actor.modbusActor,
 		domain.SetStorageControlRequest{Params: params}, 2*time.Second),
 		func(err error) any {
 			return domain.SetStorageControlResponse{
@@ -544,7 +544,7 @@ func (state BCAwaitStorageControlResponseState) OnEnterAction(ctx actor.Context,
 // Await powerflow response state
 
 type BCAwaitPowerFlowResponseState struct {
-	ActorState
+	actorutil.ActorState
 	actor *BatteryControlActorNew
 }
 
@@ -580,7 +580,7 @@ func (state BCAwaitPowerFlowResponseState) Receive(ctx actor.Context) {
 }
 
 func (state BCAwaitPowerFlowResponseState) OnEnterAction(ctx actor.Context) BCAwaitPowerFlowResponseState {
-	PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.actor.modbusActor,
+	actorutil.PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.actor.modbusActor,
 		domain.GetStorageControlPowerFlowRequest{}, 2*time.Second),
 		func(err error) any {
 			return domain.GetStorageControlPowerFlowResponse{

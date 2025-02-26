@@ -35,7 +35,7 @@ func NewModbusActor(inverter sunspec_modbus.InverterModbusReader, acMeter sunspe
 		acMeter:  acMeter,
 		behavior: actor.NewBehavior(),
 		stash:    &actorutil.Stash{},
-		logger:   actorutil.ActorLogger("modbus", logger),
+		logger:   actorutil.ActorLogger(domain.ACTOR_ID_MODBUS, logger),
 	}
 	act.behavior.Become(act.StartingReceive)
 	return act

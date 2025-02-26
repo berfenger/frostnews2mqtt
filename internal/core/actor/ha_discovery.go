@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"frostnews2mqtt/internal/config"
 	"frostnews2mqtt/internal/core/domain"
-	. "frostnews2mqtt/internal/util/actorutil"
+	"frostnews2mqtt/internal/util/actorutil"
 	"time"
 
 	"github.com/asynkron/protoactor-go/actor"
@@ -19,7 +19,7 @@ const (
 type HADiscoveryActor struct {
 	config             *config.Config
 	behavior           actor.Behavior
-	stash              *Stash
+	stash              *actorutil.Stash
 	modbusActor        *actor.PID
 	mqttActor          *actor.PID
 	modbusActorHealthy bool
@@ -35,8 +35,8 @@ func NewHADiscoveryActor(config *config.Config, modbusActor *actor.PID, mqttActo
 		modbusActor: modbusActor,
 		mqttActor:   mqttActor,
 		behavior:    actor.NewBehavior(),
-		stash:       &Stash{},
-		logger:      ActorLogger("hadiscovery", logger),
+		stash:       &actorutil.Stash{},
+		logger:      actorutil.ActorLogger(domain.ACTOR_ID_HA_DISCOVERY, logger),
 	}
 	act.behavior.Become(act.StartingReceive)
 	return act
@@ -56,14 +56,14 @@ func (state *HADiscoveryActor) StartingReceive(ctx actor.Context) {
 		state.modbusActorHealthy = false
 		state.mqttActorHealthy = false
 		// Modbus Actor Request
-		PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.modbusActor, domain.ActorHealthRequest{}, 2*time.Second), func(err error) any {
+		actorutil.PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.modbusActor, domain.ActorHealthRequest{}, 2*time.Second), func(err error) any {
 			return domain.ActorHealthResponse{
 				Id:      domain.ACTOR_ID_MODBUS,
 				Healthy: false,
 			}
 		})
 		// MQTT Actor Request
-		PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.mqttActor, domain.ActorHealthRequest{}, 2*time.Second), func(err error) any {
+		actorutil.PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.mqttActor, domain.ActorHealthRequest{}, 2*time.Second), func(err error) any {
 			return domain.ActorHealthResponse{
 				Id:      domain.ACTOR_ID_MQTT,
 				Healthy: false,
@@ -93,7 +93,7 @@ func (state *HADiscoveryActor) WaitingHealthyReceive(ctx actor.Context) {
 
 			if state.modbusActorHealthy && state.mqttActorHealthy {
 				// Ask Modbus GetDevicesInfoRequest
-				PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.modbusActor, domain.GetDevicesInfoRequest{}, 2*time.Second), func(err error) any {
+				actorutil.PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.modbusActor, domain.GetDevicesInfoRequest{}, 2*time.Second), func(err error) any {
 					return domain.GetDevicesInfoResponse{
 						ActorResponseMixIn: domain.ActorResponseMixIn{
 							ResponseError: err,

@@ -6,7 +6,7 @@ import (
 	adactor "frostnews2mqtt/internal/adapter/actor"
 	"frostnews2mqtt/internal/config"
 	"frostnews2mqtt/internal/core/domain"
-	. "frostnews2mqtt/internal/util/actorutil"
+	"frostnews2mqtt/internal/util/actorutil"
 	"log"
 	"time"
 
@@ -22,7 +22,7 @@ type ModbusActorProvider func() *adactor.ModbusActor
 type MasterOfPuppetsActor struct {
 	config   config.Config
 	behavior actor.Behavior
-	stash    *Stash
+	stash    *actorutil.Stash
 
 	currentHealthCheck  healthCheckResult
 	eventStream         *eventstream.EventStream
@@ -33,7 +33,6 @@ type MasterOfPuppetsActor struct {
 	modbusActorProvider ModbusActorProvider
 	mqttActorProvider   MQTTActorProvider
 	logger              *zap.Logger
-	testMQTT            bool
 }
 
 type healthCheckResult struct {
@@ -48,8 +47,8 @@ func NewMasterOfPuppetsActor(config config.Config, modbusActorProvider ModbusAct
 	act := &MasterOfPuppetsActor{
 		config:              config,
 		behavior:            actor.NewBehavior(),
-		stash:               &Stash{},
-		logger:              ActorLogger("master", logger),
+		stash:               &actorutil.Stash{},
+		logger:              actorutil.ActorLogger("master", logger),
 		eventStream:         &eventstream.EventStream{},
 		modbusActorProvider: modbusActorProvider,
 		mqttActorProvider:   mqttActorProvider,
@@ -121,21 +120,21 @@ func (state *MasterOfPuppetsActor) DefaultReceive(ctx actor.Context) {
 		state.currentHealthCheck.reset()
 		state.currentHealthCheck.respondTo = ctx.Sender()
 		// Modbus Actor Request
-		PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.modbusActor, domain.ActorHealthRequest{}, 500*time.Millisecond), func(err error) any {
+		actorutil.PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.modbusActor, domain.ActorHealthRequest{}, 500*time.Millisecond), func(err error) any {
 			return domain.ActorHealthResponse{
 				Id:      domain.ACTOR_ID_MODBUS,
 				Healthy: false,
 			}
 		})
 		// MQTT Actor Request
-		PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.mqttActor, domain.ActorHealthRequest{}, 500*time.Millisecond), func(err error) any {
+		actorutil.PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.mqttActor, domain.ActorHealthRequest{}, 500*time.Millisecond), func(err error) any {
 			return domain.ActorHealthResponse{
 				Id:      domain.ACTOR_ID_MQTT,
 				Healthy: false,
 			}
 		})
 		// PowerFlow Actor Request
-		PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.powerFlowActor, domain.ActorHealthRequest{}, 500*time.Millisecond), func(err error) any {
+		actorutil.PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.powerFlowActor, domain.ActorHealthRequest{}, 500*time.Millisecond), func(err error) any {
 			return domain.ActorHealthResponse{
 				Id:      domain.ACTOR_ID_POWERFLOW,
 				Healthy: false,
@@ -149,7 +148,7 @@ func (state *MasterOfPuppetsActor) DefaultReceive(ctx actor.Context) {
 		// redirect parsedCommand to actor
 		state.logger.Debug("master@default parsedCommand", zap.Any("command", msg.Command))
 		if msg.Command != nil {
-			cmd, err := ParsedMQTTCommandToCommand(*msg.Command)
+			cmd, err := actorutil.ParsedMQTTCommandToCommand(*msg.Command)
 			if err == nil && cmd != nil {
 				switch pcmd := cmd.(type) {
 				case domain.BatteryControlRequest:

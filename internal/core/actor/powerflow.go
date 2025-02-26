@@ -5,7 +5,7 @@ import (
 	"frostnews2mqtt/internal/config"
 	"frostnews2mqtt/internal/core/domain"
 	"frostnews2mqtt/internal/core/events"
-	. "frostnews2mqtt/internal/util/actorutil"
+	"frostnews2mqtt/internal/util/actorutil"
 	"time"
 
 	"github.com/asynkron/protoactor-go/actor"
@@ -16,7 +16,7 @@ import (
 
 type PowerFlowActor struct {
 	behavior  actor.Behavior
-	stash     *Stash
+	stash     *actorutil.Stash
 	scheduler *scheduler.TimerScheduler
 
 	modbusActor       *actor.PID
@@ -37,8 +37,8 @@ func NewPowerFlowActor(config *config.Config, modbusActor *actor.PID, eventStrea
 		config:            config,
 		modbusActor:       modbusActor,
 		behavior:          actor.NewBehavior(),
-		stash:             &Stash{},
-		logger:            ActorLogger("powerflow", logger),
+		stash:             &actorutil.Stash{},
+		logger:            actorutil.ActorLogger("powerflow", logger),
 		eventStream:       eventStream,
 		hasStorage:        false,
 		currentStateCount: 2,
@@ -62,7 +62,7 @@ func (state *PowerFlowActor) StartingReceive(ctx actor.Context) {
 			state.scheduler.RequestOnce(time.Duration(state.config.MonitorConfig.PollIntervalMillis)*time.Millisecond, ctx.Self(), powerFlowTick{})
 		}
 
-		PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.modbusActor, domain.GetDevicesInfoRequest{}, 1*time.Second), func(err error) any {
+		actorutil.PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.modbusActor, domain.GetDevicesInfoRequest{}, 1*time.Second), func(err error) any {
 			return domain.GetDevicesInfoResponse{
 				ActorResponseMixIn: domain.ActorResponseMixIn{
 					ResponseError: err,
@@ -89,7 +89,7 @@ func (state *PowerFlowActor) DefaultReceive(ctx actor.Context) {
 	case powerFlowTick:
 		state.logger.Debug("powerflow@default tick")
 		// get power flow
-		PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.modbusActor, domain.GetPowerFlowRequest{}, 1*time.Second), func(err error) any {
+		actorutil.PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.modbusActor, domain.GetPowerFlowRequest{}, 1*time.Second), func(err error) any {
 			return domain.GetPowerFlowResponse{
 				ActorResponseMixIn: domain.ActorResponseMixIn{
 					ResponseError: err,
@@ -99,7 +99,7 @@ func (state *PowerFlowActor) DefaultReceive(ctx actor.Context) {
 		// get Inverter/Storage states
 		if state.currentStateCount == state.stateCount {
 			state.currentStateCount = 0
-			PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.modbusActor, domain.GetInverterStateRequest{}, 1*time.Second), func(err error) any {
+			actorutil.PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.modbusActor, domain.GetInverterStateRequest{}, 1*time.Second), func(err error) any {
 				return domain.GetInverterStateResponse{
 					ActorResponseMixIn: domain.ActorResponseMixIn{
 						ResponseError: err,
@@ -107,7 +107,7 @@ func (state *PowerFlowActor) DefaultReceive(ctx actor.Context) {
 				}
 			})
 			if state.hasStorage {
-				PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.modbusActor, domain.GetStorageStateRequest{}, 1*time.Second), func(err error) any {
+				actorutil.PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.modbusActor, domain.GetStorageStateRequest{}, 1*time.Second), func(err error) any {
 					return domain.GetStorageStateResponse{
 						ActorResponseMixIn: domain.ActorResponseMixIn{
 							ResponseError: err,
