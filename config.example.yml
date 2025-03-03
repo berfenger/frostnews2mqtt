@@ -25,3 +25,4 @@ battery_control:
   control_interval_millis: 20000
   start_power_threshold: 500
   max_rate_power_increase: 800
+  safety_margin_power: 200

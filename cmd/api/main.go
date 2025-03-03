@@ -175,8 +175,8 @@ func initConfig() (*config.Config, error) {
 	if cfg.BatteryControlConfig.MaxRatePowerIncrease <= 0 {
 		return nil, errors.New("config param battery_control.max_rate_power_increase should be > 0")
 	}
-	if cfg.GridConfig.MaxImportPower <= 0 {
-		return nil, errors.New("config param grid.max_import_power should be > 0")
+	if cfg.GridConfig.MaxImportPower > 0 && cfg.BatteryControlConfig.SafetyMarginPower >= cfg.GridConfig.MaxImportPower {
+		return nil, errors.New("config param battery_control.safety_margin_power must be < grid.max_import_power")
 	}
 	if cfg.MonitorConfig.PollIntervalMillis < 1000 {
 		return nil, errors.New("config param monitor.poll_interval_millis should be >= 1000")
@@ -225,6 +225,7 @@ func setConfigDefaults() {
 	viper.SetDefault("battery_control.control_interval_millis", 20000)
 	viper.SetDefault("battery_control.start_power_threshold", 500)
 	viper.SetDefault("battery_control.max_rate_power_increase", 800)
+	viper.SetDefault("battery_control.safety_margin_power", 200)
 	viper.SetDefault("port", 8080)
 }
 

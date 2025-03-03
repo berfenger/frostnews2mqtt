@@ -34,13 +34,14 @@ type MonitorConfig struct {
 }
 
 type GridConfig struct {
-	MaxImportPower uint `mapstructure:"max_import_power"`
+	MaxImportPower uint32 `mapstructure:"max_import_power"`
 }
 
 type BatteryControlConfig struct {
 	ControlIntervalMillis uint32 `mapstructure:"control_interval_millis"`
-	StartPowerThreshold   uint   `mapstructure:"start_power_threshold"`
-	MaxRatePowerIncrease  uint   `mapstructure:"max_rate_power_increase"`
+	StartPowerThreshold   uint32 `mapstructure:"start_power_threshold"`
+	MaxRatePowerIncrease  uint32 `mapstructure:"max_rate_power_increase"`
+	SafetyMarginPower     uint32 `mapstructure:"safety_margin_power"`
 }
 
 type MQTTConfig struct {
