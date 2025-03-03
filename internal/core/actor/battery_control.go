@@ -16,7 +16,7 @@ import (
 	"go.uber.org/zap"
 )
 
-type BatteryControlActorNew struct {
+type BatteryControlActor struct {
 	actorutil.ActorWithStates
 	scheduler   *scheduler.TimerScheduler
 	stash       *actorutil.Stash
@@ -31,8 +31,8 @@ type BatteryControlActorNew struct {
 type batteryControlTick struct {
 }
 
-func NewBatteryControlActor(config *config.Config, modbusActor *actor.PID, mqttActor *actor.PID, control port.BatteryChargeControlLogic, logger *zap.Logger) *BatteryControlActorNew {
-	act := &BatteryControlActorNew{
+func NewBatteryControlActor(config *config.Config, modbusActor *actor.PID, mqttActor *actor.PID, control port.BatteryChargeControlLogic, logger *zap.Logger) *BatteryControlActor {
+	act := &BatteryControlActor{
 		config:      config,
 		modbusActor: modbusActor,
 		mqttActor:   mqttActor,
@@ -50,7 +50,7 @@ func NewBatteryControlActor(config *config.Config, modbusActor *actor.PID, mqttA
 	return act
 }
 
-func (state *BatteryControlActorNew) Receive(context actor.Context) {
+func (state *BatteryControlActor) Receive(context actor.Context) {
 	state.Behavior.Receive(context)
 }
 
@@ -58,7 +58,7 @@ func (state *BatteryControlActorNew) Receive(context actor.Context) {
 
 type BCStartingState struct {
 	actorutil.ActorState
-	actor *BatteryControlActorNew
+	actor *BatteryControlActor
 }
 
 func (state BCStartingState) Name() string {
@@ -93,7 +93,7 @@ func (state BCStartingState) Receive(ctx actor.Context) {
 
 type BCWaitingInfoState struct {
 	actorutil.ActorState
-	actor *BatteryControlActorNew
+	actor *BatteryControlActor
 }
 
 func (state BCWaitingInfoState) Name() string {
@@ -133,7 +133,7 @@ func (state BCWaitingInfoState) Receive(ctx actor.Context) {
 
 type BCIdleState struct {
 	actorutil.ActorState
-	actor *BatteryControlActorNew
+	actor *BatteryControlActor
 }
 
 func (state BCIdleState) Name() string {
@@ -186,7 +186,7 @@ func (state BCIdleState) OnEnter(ctx actor.Context) BCIdleState {
 
 // Charging state
 
-func NewBCChargingState(fromActor *BatteryControlActorNew, hold bool) BCChargingState {
+func NewBCChargingState(fromActor *BatteryControlActor, hold bool) BCChargingState {
 	return BCChargingState{
 		actor: fromActor,
 		hold:  hold,
@@ -202,7 +202,7 @@ func NewBCChargingState(fromActor *BatteryControlActorNew, hold bool) BCCharging
 
 type BCChargingState struct {
 	actorutil.ActorState
-	actor      *BatteryControlActorNew
+	actor      *BatteryControlActor
 	params     sunspec_modbus.StorageControlParams
 	hold       bool
 	cancelTick scheduler.CancelFunc
@@ -330,7 +330,7 @@ func (state BCChargingState) sendStorageControl(ctx actor.Context) BCChargingSta
 
 // Holding state
 
-func NewBCHoldingState(fromActor *BatteryControlActorNew) BCHoldingState {
+func NewBCHoldingState(fromActor *BatteryControlActor) BCHoldingState {
 	return BCHoldingState{
 		actor: fromActor,
 		params: sunspec_modbus.StorageControlParams{
@@ -345,7 +345,7 @@ func NewBCHoldingState(fromActor *BatteryControlActorNew) BCHoldingState {
 
 type BCHoldingState struct {
 	actorutil.ActorState
-	actor      *BatteryControlActorNew
+	actor      *BatteryControlActor
 	params     sunspec_modbus.StorageControlParams
 	cancelTick scheduler.CancelFunc
 }
@@ -433,7 +433,7 @@ func (state BCHoldingState) sendStorageControl(ctx actor.Context) BCHoldingState
 
 type BCDoneState struct {
 	actorutil.ActorState
-	actor *BatteryControlActorNew
+	actor *BatteryControlActor
 }
 
 func (state BCDoneState) Name() string {
@@ -457,7 +457,7 @@ func (state BCDoneState) Receive(ctx actor.Context) {
 
 type BCAwaitStorageControlResponseState struct {
 	actorutil.ActorState
-	actor *BatteryControlActorNew
+	actor *BatteryControlActor
 }
 
 func (state BCAwaitStorageControlResponseState) Name() string {
@@ -510,7 +510,7 @@ func (state BCAwaitStorageControlResponseState) OnEnterAction(ctx actor.Context,
 
 type BCAwaitPowerFlowResponseState struct {
 	actorutil.ActorState
-	actor *BatteryControlActorNew
+	actor *BatteryControlActor
 }
 
 func (state BCAwaitPowerFlowResponseState) Name() string {
@@ -560,34 +560,34 @@ func (state BCAwaitPowerFlowResponseState) OnEnterAction(ctx actor.Context) BCAw
 
 // Other actor function helpers
 
-func (state *BatteryControlActorNew) setChargeTargetSoC(ctx actor.Context, targetSOC uint8) {
+func (state *BatteryControlActor) setChargeTargetSoC(ctx actor.Context, targetSOC uint8) {
 	state.targetSOC = targetSOC
 	state.updateChargeTargetSoC(ctx, targetSOC)
 }
 
-func (state *BatteryControlActorNew) updateSwitchState(ctx actor.Context, controlHold, controlCharge bool) {
+func (state *BatteryControlActor) updateSwitchState(ctx actor.Context, controlHold, controlCharge bool) {
 	state.updateHoldSwitchState(ctx, controlHold)
 	state.updateChargeSwitchState(ctx, controlCharge)
 }
 
-func (state *BatteryControlActorNew) updateHoldSwitchState(ctx actor.Context, switchState bool) {
+func (state *BatteryControlActor) updateHoldSwitchState(ctx actor.Context, switchState bool) {
 	event := events.BatteryControlHoldSwitchUpdateEvents(switchState)
 	state.sendEventToMQTT(ctx, event)
 }
 
-func (state *BatteryControlActorNew) updateChargeSwitchState(ctx actor.Context, switchState bool) {
+func (state *BatteryControlActor) updateChargeSwitchState(ctx actor.Context, switchState bool) {
 	event := events.BatteryControlChargeSwitchUpdateEvents(switchState)
 	state.sendEventToMQTT(ctx, event)
 }
 
-func (state *BatteryControlActorNew) updateChargeTargetSoC(ctx actor.Context, targetSoC uint8) {
+func (state *BatteryControlActor) updateChargeTargetSoC(ctx actor.Context, targetSoC uint8) {
 	events := events.BatteryControlSetTargetSoCUpdateEvents(targetSoC)
 	for _, ev := range events {
 		state.sendEventToMQTT(ctx, ev)
 	}
 }
 
-func (state *BatteryControlActorNew) sendEventToMQTT(ctx actor.Context, ev domain.SensorUpdateEvent) {
+func (state *BatteryControlActor) sendEventToMQTT(ctx actor.Context, ev domain.SensorUpdateEvent) {
 	ctx.Send(state.mqttActor, domain.PublishSensorUpdateRequest{
 		Event: ev,
 	})
