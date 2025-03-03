@@ -22,7 +22,7 @@ grid:
   max_import_power: 4000
 
 battery_control:
-  control_interval_millis: 20000
+  control_interval_millis: 10000
   start_power_threshold: 500
   max_rate_power_increase: 800
   safety_margin_power: 200

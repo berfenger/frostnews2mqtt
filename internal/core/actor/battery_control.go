@@ -18,14 +18,15 @@ import (
 
 type BatteryControlActor struct {
 	actorutil.ActorWithStates
-	scheduler   *scheduler.TimerScheduler
-	stash       *actorutil.Stash
-	modbusActor *actor.PID
-	mqttActor   *actor.PID
-	config      *config.Config
-	targetSOC   uint8
-	control     port.BatteryChargeControlLogic
-	logger      *zap.Logger
+	scheduler          *scheduler.TimerScheduler
+	stash              *actorutil.Stash
+	modbusActor        *actor.PID
+	mqttActor          *actor.PID
+	config             *config.Config
+	targetSOC          uint8
+	control            port.BatteryChargeControlLogic
+	tickIntervalMillis uint32
+	logger             *zap.Logger
 }
 
 type batteryControlTick struct {
@@ -33,13 +34,14 @@ type batteryControlTick struct {
 
 func NewBatteryControlActor(config *config.Config, modbusActor *actor.PID, mqttActor *actor.PID, control port.BatteryChargeControlLogic, logger *zap.Logger) *BatteryControlActor {
 	act := &BatteryControlActor{
-		config:      config,
-		modbusActor: modbusActor,
-		mqttActor:   mqttActor,
-		stash:       &actorutil.Stash{},
-		logger:      actorutil.ActorLogger(domain.ACTOR_ID_BATTERY_CONTROL, logger),
-		control:     control,
-		targetSOC:   100,
+		config:             config,
+		modbusActor:        modbusActor,
+		mqttActor:          mqttActor,
+		stash:              &actorutil.Stash{},
+		logger:             actorutil.ActorLogger(domain.ACTOR_ID_BATTERY_CONTROL, logger),
+		control:            control,
+		tickIntervalMillis: config.BatteryControlConfig.ControlIntervalMillis,
+		targetSOC:          100,
 		ActorWithStates: actorutil.ActorWithStates{
 			Behavior: actor.NewBehavior(),
 		},
@@ -195,7 +197,7 @@ func NewBCChargingState(fromActor *BatteryControlActor, hold bool) BCChargingSta
 			MaxChargePowerWatt:    -1,
 			MinDischargePowerWatt: -1,
 			MaxDischargePowerWatt: -1,
-			RevertTimeSeconds:     uint32(fromActor.config.BatteryControlConfig.ControlIntervalMillis / 1000),
+			RevertTimeSeconds:     (fromActor.tickIntervalMillis / 1000) * 2,
 		},
 	}
 }
@@ -234,7 +236,7 @@ func (state BCChargingState) Receive(ctx actor.Context) {
 			panic(msg.GetResponseError())
 		}
 		// on successful control response, schedule next control tick
-		state.cancelTick = state.actor.scheduler.RequestOnce(time.Duration(state.params.RevertTimeSeconds)*time.Second/2, ctx.Self(), batteryControlTick{})
+		state.cancelTick = state.actor.scheduler.RequestOnce(time.Duration(state.actor.tickIntervalMillis)*time.Millisecond, ctx.Self(), batteryControlTick{})
 		state.actor.Become(state)
 	case domain.GetStorageControlPowerFlowResponse:
 		if msg.HasResponseError() {
@@ -338,7 +340,7 @@ func NewBCHoldingState(fromActor *BatteryControlActor) BCHoldingState {
 			MaxChargePowerWatt:    -1,
 			MinDischargePowerWatt: -1,
 			MaxDischargePowerWatt: 0,
-			RevertTimeSeconds:     uint32(fromActor.config.BatteryControlConfig.ControlIntervalMillis / 1000),
+			RevertTimeSeconds:     (fromActor.tickIntervalMillis / 1000) * 2,
 		},
 	}
 }
@@ -373,7 +375,7 @@ func (state BCHoldingState) Receive(ctx actor.Context) {
 			panic(msg.GetResponseError())
 		}
 		// on successful control response, schedule next control tick
-		state.cancelTick = state.actor.scheduler.RequestOnce(time.Duration(state.params.RevertTimeSeconds)*time.Second/2, ctx.Self(), batteryControlTick{})
+		state.cancelTick = state.actor.scheduler.RequestOnce(time.Duration(state.actor.tickIntervalMillis)*time.Millisecond, ctx.Self(), batteryControlTick{})
 		state.actor.Become(state)
 	case domain.BatteryControlRequest:
 		switch cmd := msg.(type) {
