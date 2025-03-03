@@ -6,6 +6,7 @@ import (
 	adactor "frostnews2mqtt/internal/adapter/actor"
 	"frostnews2mqtt/internal/config"
 	"frostnews2mqtt/internal/core/domain"
+	"frostnews2mqtt/internal/core/service"
 	"frostnews2mqtt/internal/util/actorutil"
 	"log"
 	"time"
@@ -275,8 +276,16 @@ func (state *MasterOfPuppetsActor) startBatteryControlActor(ctx actor.Context) (
 	}
 	supervisor := actor.NewOneForOneStrategy(1, 10*time.Second, decider)
 
+	control := &service.DefaultBatteryControlLogic{
+		StartPowerThreshold:     state.config.BatteryControlConfig.StartPowerThreshold,
+		MaxRatePowerIncrease:    state.config.BatteryControlConfig.MaxRatePowerIncrease,
+		MaxImportPower:          state.config.GridConfig.MaxImportPower,
+		PowerImportSafetyMargin: state.config.BatteryControlConfig.SafetyMarginPower,
+		Logger:                  state.logger,
+	}
+
 	battControlProps := actor.PropsFromProducer(func() actor.Actor {
-		return NewBatteryControlActor(&state.config, state.modbusActor, state.mqttActor, state.logger)
+		return NewBatteryControlActor(&state.config, state.modbusActor, state.mqttActor, control, state.logger)
 	}, actor.WithSupervisor(supervisor))
 	battControlPID, err := ctx.SpawnNamed(battControlProps, domain.ACTOR_ID_BATTERY_CONTROL)
 	if err != nil {

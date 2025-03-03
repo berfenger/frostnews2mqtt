@@ -6,9 +6,9 @@ import (
 	"frostnews2mqtt/internal/config"
 	"frostnews2mqtt/internal/core/domain"
 	"frostnews2mqtt/internal/core/events"
+	"frostnews2mqtt/internal/core/port"
 	"frostnews2mqtt/internal/util/actorutil"
 	"frostnews2mqtt/pkg/sunspec_modbus"
-	"math"
 	"time"
 
 	"github.com/asynkron/protoactor-go/actor"
@@ -16,35 +16,30 @@ import (
 	"go.uber.org/zap"
 )
 
-const (
-	POWER_IMPORT_SAFETY_MARGIN_W = 200
-)
-
 type BatteryControlActorNew struct {
 	actorutil.ActorWithStates
-	scheduler      *scheduler.TimerScheduler
-	stash          *actorutil.Stash
-	modbusActor    *actor.PID
-	mqttActor      *actor.PID
-	config         *config.Config
-	maxImportPower uint32
-	targetSOC      uint8
-
-	logger *zap.Logger
+	scheduler   *scheduler.TimerScheduler
+	stash       *actorutil.Stash
+	modbusActor *actor.PID
+	mqttActor   *actor.PID
+	config      *config.Config
+	targetSOC   uint8
+	control     port.BatteryChargeControlLogic
+	logger      *zap.Logger
 }
 
 type batteryControlTick struct {
 }
 
-func NewBatteryControlActor(config *config.Config, modbusActor *actor.PID, mqttActor *actor.PID, logger *zap.Logger) *BatteryControlActorNew {
+func NewBatteryControlActor(config *config.Config, modbusActor *actor.PID, mqttActor *actor.PID, control port.BatteryChargeControlLogic, logger *zap.Logger) *BatteryControlActorNew {
 	act := &BatteryControlActorNew{
-		config:         config,
-		modbusActor:    modbusActor,
-		mqttActor:      mqttActor,
-		stash:          &actorutil.Stash{},
-		logger:         actorutil.ActorLogger(domain.ACTOR_ID_BATTERY_CONTROL, logger),
-		maxImportPower: uint32(config.GridConfig.MaxImportPower),
-		targetSOC:      100,
+		config:      config,
+		modbusActor: modbusActor,
+		mqttActor:   mqttActor,
+		stash:       &actorutil.Stash{},
+		logger:      actorutil.ActorLogger(domain.ACTOR_ID_BATTERY_CONTROL, logger),
+		control:     control,
+		targetSOC:   100,
 		ActorWithStates: actorutil.ActorWithStates{
 			Behavior: actor.NewBehavior(),
 		},
@@ -114,9 +109,10 @@ func (state BCWaitingInfoState) Receive(ctx actor.Context) {
 		}
 		state.actor.logger.Debug("battery_control@waitingInfo GetDevicesInfoResponse")
 		if msg.ACMeter != nil && msg.Inverter != nil {
-			if state.actor.maxImportPower <= 0 {
+			// auto discover MaxGridImportPower if necessary
+			if state.actor.control.MaxGridImportPower() <= 0 {
 				state.actor.logger.Sugar().Infof("max_import_power not defined. assuming max rated power of inverter = %d", msg.Inverter.MaxRatedPowerWatt)
-				state.actor.maxImportPower = uint32(msg.Inverter.MaxRatedPowerWatt)
+				state.actor.control.SetMaxGridImportPower(msg.Inverter.MaxRatedPowerWatt)
 			}
 			state.actor.Become(BCIdleState{
 				actor: state.actor,
@@ -246,50 +242,20 @@ func (state BCChargingState) Receive(ctx actor.Context) {
 			panic(msg.GetResponseError())
 		}
 		// Battery charge control loop
-		if msg.StorageState.StateOfCharge >= float64(state.actor.targetSOC) {
-			// when battery SoC target is reached, disable force charge
+		controlResult := state.actor.control.Loop(state.params.MinChargePowerWatt,
+			msg.StorageState, msg.ACMeterPowerFlow, msg.InverterPowerFlow, state.actor.targetSOC)
+
+		if controlResult.Exit {
 			state.actor.logger.Info("battery_control@charging: charge targetSoC is met. Turning off charging control.")
 			state.Exit(ctx)
 		} else {
-			var prevPowerValue = state.params.MinChargePowerWatt
-			var newPowerValue float64 = float64(prevPowerValue)
-			if prevPowerValue == -1 {
-				// track house power consumption
-				houseConsumption := msg.InverterPowerFlow.ACPowerWatt + msg.ACMeterPowerFlow.CurrentPowerFlowWatt
-
-				/* powerBudget = grid.maxImportPower + PV power - House consumption
-				 * Battery should be ignored because while charging the battery,
-				 * it cannot be discharged at the same time to meet house power requirements
-				 */
-				realPVPower := math.Max(0, msg.InverterPowerFlow.PVPowerWatt)
-				powerBudget := float64(state.actor.maxImportPower) - POWER_IMPORT_SAFETY_MARGIN_W // max import from grid
-				powerBudget += realPVPower                                                        // + solar
-				powerBudget -= houseConsumption                                                   // - house consumption
-
-				// to start, powerBudget should be greater than solar production
-				if powerBudget > realPVPower &&
-					powerBudget > float64(state.actor.config.BatteryControlConfig.StartPowerThreshold) {
-					// newPowerValue = MIN(MAX(maxRate, PVPower), powerBudget)
-					newPowerValue = math.Min(math.Max(float64(state.actor.config.BatteryControlConfig.MaxRatePowerIncrease), realPVPower), powerBudget)
-				} else {
-					newPowerValue = -1
-				}
-			} else {
-				// adjust charge power
-				availablePower := float64(state.actor.maxImportPower) - msg.ACMeterPowerFlow.CurrentImportPowerWatt - POWER_IMPORT_SAFETY_MARGIN_W
-				newPowerValue += math.Min(float64(state.actor.config.BatteryControlConfig.MaxRatePowerIncrease), availablePower)
+			state.actor.logger.Sugar().Infof("battery_control@charging: set new charge power %f", controlResult.NewPowerValue)
+			npv := controlResult.NewPowerValue
+			// add bounds adjustment for safety
+			if npv < 0 {
+				npv = -1
 			}
-
-			// check bounds
-			// max value
-			newPowerValue = math.Min(float64(msg.StorageState.MaxCapacityWatt), newPowerValue)
-			// min value
-			// if negative, temp disable
-			if newPowerValue < 0 {
-				newPowerValue = -1
-			}
-			state.actor.logger.Sugar().Infof("battery_control@charging: set new charge power %f", newPowerValue)
-			state.params.MinChargePowerWatt = int32(newPowerValue)
+			state.params.MinChargePowerWatt = npv
 			state.sendStorageControl(ctx)
 			state.actor.Become(state)
 		}

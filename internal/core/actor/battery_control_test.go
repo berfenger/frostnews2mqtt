@@ -5,6 +5,7 @@ import (
 	adactor "frostnews2mqtt/internal/adapter/actor"
 	"frostnews2mqtt/internal/config"
 	"frostnews2mqtt/internal/core/domain"
+	"frostnews2mqtt/internal/core/service"
 	"frostnews2mqtt/internal/util/actorutil"
 	"frostnews2mqtt/pkg/sunspec_modbus"
 	"testing"
@@ -38,9 +39,18 @@ func TestBatteryControlFlow(t *testing.T) {
 	evProps := actor.PropsFromProducer(func() actor.Actor { return adactor.NewTestMQTTActor(&cfg, logger) })
 	eventActorPID := context.Spawn(evProps)
 
+	// control logic
+	control := &service.DefaultBatteryControlLogic{
+		StartPowerThreshold:     0,
+		MaxRatePowerIncrease:    800,
+		MaxImportPower:          4000,
+		PowerImportSafetyMargin: 200,
+		Logger:                  logger,
+	}
+
 	// batteryControl actor
 	battCtrlProps := actor.PropsFromProducer(func() actor.Actor {
-		return NewBatteryControlActor(&cfg, modbusActorPID, eventActorPID, logger)
+		return NewBatteryControlActor(&cfg, modbusActorPID, eventActorPID, control, logger)
 	})
 	bcActorPID := context.Spawn(battCtrlProps)
 
