@@ -144,7 +144,10 @@ func (state *MQTTActor) DefaultReceive(ctx actor.Context) {
 		state.publishSensorValue(ctx, msg.Event, msg.Retain)
 	case domain.PublishDiscoveryRequest:
 		state.logger.Debug("mqtt@default PublishHADiscovery")
-		state.PublishHomeAssistantDiscovery(ctx, msg.Sensors, msg.Switches, msg.InputNumbers)
+		err := state.PublishHomeAssistantDiscovery(ctx, msg.Sensors, msg.Switches, msg.InputNumbers)
+		if err != nil {
+			state.logger.Error("mqtt@default PublishHADiscovery error", zap.Error(err))
+		}
 	case MQTTConnectionLost:
 		// if connection lost, stop actor and let supervisor decide
 		state.logger.Error("mqtt@default connection lost", zap.Error(msg.Error))

@@ -68,7 +68,7 @@ func main() {
 	as := actorutil.NewActorSystemWithZapLogger(logger)
 	ctx := as.Root
 
-	defer logger.Sync()
+	defer logger.Sync() //nolint:errcheck
 
 	// init Modbus actor provider
 	modbusProv, err := modbusActorProvider(cfg, logger)

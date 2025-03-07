@@ -144,9 +144,6 @@ func TestInfoInverter(t *testing.T) {
 		t.Error(err)
 	}
 	fmt.Printf("Inverter State: %+v\n", state)
-
-	reader.GetState()
-
 }
 
 func TestMeter(t *testing.T) {
