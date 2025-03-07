@@ -1,0 +1,73 @@
+# https://taskfile.dev
+# go install github.com/go-task/task/v3/cmd/task@latest
+
+version: "3"
+
+env:
+  APP_NAME: frostnews2mqtt
+
+dotenv:
+  - ".env"
+
+tasks:
+  default:
+    desc: "Get things started"
+    cmds:
+      - task: install
+
+  install:
+    desc: "Install dependencies"
+    cmds:
+      - go mod download
+      - go install github.com/air-verse/air@latest
+      - go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+
+  dev:
+    desc: "Start development server"
+    cmd: air
+    requires:
+      vars:
+        - PORT
+        - CONFIG_FILE
+
+  build:
+    desc: "Build binary"
+    cmd: go build -o ./bin/{{.APP_NAME}} ./cmd/api/main.go
+    requires:
+      vars:
+        - APP_NAME
+
+  clean:
+    desc: "Clean binary"
+    cmds: 
+      - rm ./bin/{{.APP_NAME}} || true
+      - rm ./coverage.html || true
+      - rm ./coverage.out || true
+    requires:
+      vars:
+        - APP_NAME
+
+  run:
+    desc: "Run binary"
+    cmd: ./bin/{{.APP_NAME}}
+    requires:
+      vars:
+        - APP_NAME
+
+  test:
+    desc: "Run tests"
+    cmds:
+      - go test -v ./... -race -cover -timeout 30s -count 1 -coverprofile=coverage.out
+      - go tool cover -html=coverage.out -o coverage.html
+
+  lint:
+    desc: "Run linter"
+    cmd: golangci-lint run ./...
+
+  service:up:
+    desc: "Start services"
+    cmd: docker-compose up -d
+
+  service:down:
+    desc: "Stop services"
+    cmd: docker-compose down
