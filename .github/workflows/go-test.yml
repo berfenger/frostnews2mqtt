@@ -6,13 +6,27 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Git checkout
+        uses: actions/checkout@v4
+      
       - name: Setup Go
         uses: actions/setup-go@v4
         with:
           go-version: '1.23.x'
 
-      - name: Build
-        run: go build -v ./...
-      - name: Test with the Go CLI
-        run: go test ./... 
+      - name: Install Task
+        uses: arduino/setup-task@v2
+        with:
+          version: 3.x
+
+      - name: Install task dependencies
+        run: task install
+
+      - name: Test build
+        run: task build
+
+      - name: Run tests
+        run: task test
+
+      - name: Run lint
+        run: task lint
