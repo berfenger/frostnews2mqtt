@@ -27,6 +27,7 @@ builds:
     - CGO_ENABLED=0
   ldflags:
     - -s -w -X {{.Env.PACKAGE_PATH}}={{.Version}}
+
 release:
   prerelease: auto
 
@@ -38,7 +39,7 @@ archives:
       {{- .ProjectName }}_{{- .Version }}_{{- title .Os }}_{{- if eq .Arch "amd64" }}x86_64{{- else if eq .Arch "386" }}i386{{- else }}{{ .Arch }}{{ end }}{{- if .Arm }}v{{ .Arm }}{{ end -}}
     format_overrides:
       - goos: windows
-        format: zip
+        formats: [ 'zip' ]
     builds_info:
       group: root
       owner: root
@@ -140,3 +141,32 @@ docker_manifests:
     push_flags:
       - --insecure
 
+changelog:
+  filters:
+    # Commit messages matching the regexp listed here will be removed from
+    # the changelog
+    #
+    # Matches are performed against the first line of the commit message only,
+    # prefixed with the commit SHA1, usually in the form of
+    # `<abbrev-commit>[:] <title-commit>`.
+    exclude:
+      - "^docs:"
+      - "^ci:"
+      - "^cd:"
+      - "^minor:"
+      - "^tools:"
+      - typo
+
+    # Commit messages matching the regexp listed here will be the only ones
+    # added to the changelog
+    #
+    # If include is not-empty, exclude will be ignored.
+    #
+    # Matches are performed against the first line of the commit message only,
+    # prefixed with the commit SHA1, usually in the form of
+    # `<abbrev-commit>[:] <title-commit>`.
+    include:
+      - "^add:"
+      - "^change:"
+      - "^fix:"
+      - "^remove:"
