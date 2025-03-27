@@ -1,5 +1,5 @@
 # https://taskfile.dev
-# go install github.com/go-task/task/v3/cmd/task@latest
+# go install github.com/go-task/task/v3/cmd/task@v3.42.1
 
 version: "3"
 
@@ -19,8 +19,8 @@ tasks:
     desc: "Install dependencies"
     cmds:
       - go mod download
-      - go install github.com/air-verse/air@latest
-      - go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+      - go install github.com/air-verse/air@1.61.7
+      - go install github.com/golangci/golangci-lint/cmd/golangci-lint@v2.0.2
 
   dev:
     desc: "Start development server"
@@ -41,7 +41,7 @@ tasks:
     desc: "Clean binary"
     cmds: 
       - rm ./bin/{{.APP_NAME}} || true
-      - rm ./coverage.html || true
+      - rm ./coverage.out.html || true
       - rm ./coverage.out || true
     requires:
       vars:
@@ -50,6 +50,8 @@ tasks:
   run:
     desc: "Run binary"
     cmd: ./bin/{{.APP_NAME}}
+    deps:
+      - task: build
     requires:
       vars:
         - APP_NAME
@@ -58,7 +60,7 @@ tasks:
     desc: "Run tests"
     cmds:
       - go test -v ./... -race -cover -timeout 30s -count 1 -coverprofile=coverage.out
-      - go tool cover -html=coverage.out -o coverage.html
+      - go tool cover -html=coverage.out -o coverage.out.html
 
   lint:
     desc: "Run linter"
