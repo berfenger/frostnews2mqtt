@@ -14,9 +14,10 @@ type stashElem struct {
 }
 
 func (stash *Stash) Stash(ctx actor.Context, msg any) {
+	sender := ctx.Sender()
 	stash.stash = append(stash.stash, stashElem{
-		msg:    msg,
-		sender: ctx.Sender(),
+		msg,
+		sender,
 	})
 }
 
