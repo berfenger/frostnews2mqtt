@@ -30,7 +30,7 @@ func TestBatteryControlFlow(t *testing.T) {
 
 	// modbus actor
 	modbusProps := actor.PropsFromProducer(func() actor.Actor {
-		return adactor.NewModbusActor(&sunspec_modbus.TestInverterModbusReader{},
+		return adactor.NewModbusActor(2*time.Second, &sunspec_modbus.TestInverterModbusReader{},
 			sunspec_modbus.TestACMeterModbusReader{}, logger)
 	})
 	modbusActorPID := context.Spawn(modbusProps)

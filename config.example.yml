@@ -13,6 +13,7 @@ inverter_modbus_tcp:
   meter_id: 200
   inverter_id: 0
   ignore_fronius: false
+  read_delay_after_change_millis: 2000
 
 monitor:
   poll_interval_millis: 5000
@@ -22,7 +23,7 @@ grid:
   max_import_power: 4000
 
 battery_control:
-  control_interval_millis: 10000
+  control_interval_millis: 4000
   start_power_threshold: 500
   max_rate_power_increase: 800
   safety_margin_power: 200

@@ -21,11 +21,12 @@ type Config struct {
 }
 
 type InverterModbusTCPConfig struct {
-	Host          string
-	Port          uint
-	MeterId       uint `mapstructure:"meter_id"`
-	InverterId    uint `mapstructure:"inverter_id"`
-	IgnoreFronius bool `mapstructure:"ignore_fronius"`
+	Host                       string
+	Port                       uint
+	MeterId                    uint   `mapstructure:"meter_id"`
+	InverterId                 uint   `mapstructure:"inverter_id"`
+	IgnoreFronius              bool   `mapstructure:"ignore_fronius"`
+	ReadDelayAfterChangeMillis uint32 `mapstructure:"read_delay_after_change_millis"`
 }
 
 type MonitorConfig struct {

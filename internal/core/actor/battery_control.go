@@ -521,6 +521,13 @@ func (state BCAwaitPowerFlowResponseState) Name() string {
 
 func (state BCAwaitPowerFlowResponseState) Receive(ctx actor.Context) {
 	switch msg := ctx.Message().(type) {
+	case domain.ActorHealthRequest:
+		state.actor.logger.Debug("battery_control@awaitPowerFlowReceive: ActorHealthRequest")
+		ctx.Respond(domain.ActorHealthResponse{
+			Id:      domain.ACTOR_ID_BATTERY_CONTROL,
+			Healthy: true,
+			State:   state.Name(),
+		})
 	case domain.GetStorageControlPowerFlowResponse:
 		ctx.SetReceiveTimeout(0)
 		if msg.HasResponseError() {

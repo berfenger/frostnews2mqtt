@@ -181,6 +181,10 @@ func initConfig() (*config.Config, error) {
 	if cfg.MonitorConfig.PollIntervalMillis < 1000 {
 		return nil, errors.New("config param monitor.poll_interval_millis should be >= 1000")
 	}
+	if !(cfg.InverterModbusTcp.ReadDelayAfterChangeMillis < cfg.MonitorConfig.PollIntervalMillis) ||
+		!(cfg.InverterModbusTcp.ReadDelayAfterChangeMillis < cfg.BatteryControlConfig.ControlIntervalMillis) {
+		return nil, errors.New("config param monitor.read_delay_after_change_millis should be < monitor.poll_interval_millis and battery_control.control_interval_millis")
+	}
 
 	return &cfg, nil
 }
@@ -204,7 +208,7 @@ func modbusActorProvider(cfg *config.Config, logger *zap.Logger) (actor.ModbusAc
 	}
 
 	return func() *adactor.ModbusActor {
-		return adactor.NewModbusActor(inv, acMeter, logger)
+		return adactor.NewModbusActor(time.Duration(cfg.InverterModbusTcp.ReadDelayAfterChangeMillis)*time.Millisecond, inv, acMeter, logger)
 	}, nil
 }
 
@@ -226,6 +230,7 @@ func setConfigDefaults() {
 	viper.SetDefault("battery_control.start_power_threshold", 500)
 	viper.SetDefault("battery_control.max_rate_power_increase", 800)
 	viper.SetDefault("battery_control.safety_margin_power", 200)
+	viper.SetDefault("inverter_modbus_tcp.read_delay_after_change_millis", 2000)
 	viper.SetDefault("port", 8080)
 }
 
