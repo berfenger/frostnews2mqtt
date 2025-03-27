@@ -111,8 +111,8 @@ func runIncrements(require *require.Assertions, ctrl port.BatteryChargeControlLo
 // increases over time to force the charge power to go down
 func runDecrements(require *require.Assertions, ctrl port.BatteryChargeControlLogic, pvPower float64, startingBatteryChargePower int32,
 	batterySoC, housePowerIncrease float64) int {
-	var powerValue int32 = startingBatteryChargePower
-	var batteryFlow float64 = -float64(startingBatteryChargePower)
+	powerValue := startingBatteryChargePower
+	batteryFlow := -float64(startingBatteryChargePower)
 	count := 0
 	for {
 		housePower := float64(ctrl.MaxGridImportPower()) + pvPower + batteryFlow + housePowerIncrease

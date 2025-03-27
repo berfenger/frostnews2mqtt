@@ -70,7 +70,7 @@ func (inv InverterIntSFModbusReader) SetStorageControl(params StorageControlPara
 	var inWRte float64 = 100
 	controlOut := false
 	controlIn := false
-	var rvrtTime int32 = int32(params.RevertTimeSeconds)
+	rvrtTime := int32(params.RevertTimeSeconds)
 	if params.MinChargePowerWatt >= 0 {
 		outWRte = -(float64(params.MinChargePowerWatt) / capacity) * 100
 		controlOut = true

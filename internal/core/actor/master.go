@@ -177,11 +177,12 @@ func (state *MasterOfPuppetsActor) HealthCheckReceive(ctx actor.Context) {
 		state.logger.Debug("master@healthcheck ActorHealthResponse", zap.String("sender", msg.Id), zap.Bool("healthy", msg.Healthy))
 		state.currentHealthCheck.checksReceived++
 		if msg.Healthy {
-			if msg.Id == domain.ACTOR_ID_MODBUS {
+			switch msg.Id {
+			case domain.ACTOR_ID_MODBUS:
 				state.currentHealthCheck.modbusActorHealthy = true
-			} else if msg.Id == domain.ACTOR_ID_MQTT {
+			case domain.ACTOR_ID_MQTT:
 				state.currentHealthCheck.mqttActorHealthy = true
-			} else if msg.Id == domain.ACTOR_ID_POWERFLOW {
+			case domain.ACTOR_ID_POWERFLOW:
 				state.currentHealthCheck.powerFlowActorHealthy = true
 			}
 		}

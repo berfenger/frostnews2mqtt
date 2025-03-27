@@ -74,10 +74,11 @@ func GenericSensorToHADiscoveryMessage(client *MQTTClient, sensor domain.Generic
 		EnabledByDefault:  sensor.EnabledByDefault,
 		Platform:          "mqtt",
 	}
-	if sensor.Id == domain.SENSOR_ID_BRIDGE_STATE {
+	switch sensor.Id {
+	case domain.SENSOR_ID_BRIDGE_STATE:
 		disConfig.PayloadOn = MQTT_PAYLOAD_ONLINE
 		disConfig.PayloadOff = MQTT_PAYLOAD_OFFLINE
-	} else if sensor.Id == domain.SENSOR_TYPE_BINARY {
+	case domain.SENSOR_TYPE_BINARY:
 		disConfig.PayloadOn = MQTT_PAYLOAD_ON
 		disConfig.PayloadOff = MQTT_PAYLOAD_OFF
 	}

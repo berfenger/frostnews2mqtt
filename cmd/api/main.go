@@ -108,6 +108,7 @@ func initConfig() (*config.Config, error) {
 
 	// alias PORT => FROSTNEWS_PORT
 	if port := os.Getenv("PORT"); port != "" {
+		//nolint errcheck
 		os.Setenv("FROSTNEWS_PORT", port)
 	}
 
@@ -181,8 +182,8 @@ func initConfig() (*config.Config, error) {
 	if cfg.MonitorConfig.PollIntervalMillis < 1000 {
 		return nil, errors.New("config param monitor.poll_interval_millis should be >= 1000")
 	}
-	if !(cfg.InverterModbusTcp.ReadDelayAfterChangeMillis < cfg.MonitorConfig.PollIntervalMillis) ||
-		!(cfg.InverterModbusTcp.ReadDelayAfterChangeMillis < cfg.BatteryControlConfig.ControlIntervalMillis) {
+	if cfg.InverterModbusTcp.ReadDelayAfterChangeMillis >= cfg.MonitorConfig.PollIntervalMillis ||
+		cfg.InverterModbusTcp.ReadDelayAfterChangeMillis >= cfg.BatteryControlConfig.ControlIntervalMillis {
 		return nil, errors.New("config param monitor.read_delay_after_change_millis should be < monitor.poll_interval_millis and battery_control.control_interval_millis")
 	}
 

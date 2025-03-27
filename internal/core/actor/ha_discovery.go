@@ -83,9 +83,10 @@ func (state *HADiscoveryActor) WaitingHealthyReceive(ctx actor.Context) {
 		state.logger.Debug("hadiscovery@healthcheck ActorHealthResponse", zap.String("sender", msg.Id), zap.Bool("healthy", msg.Healthy))
 		state.healthyRecv++
 		if msg.Healthy {
-			if msg.Id == domain.ACTOR_ID_MODBUS {
+			switch msg.Id {
+			case domain.ACTOR_ID_MODBUS:
 				state.modbusActorHealthy = true
-			} else if msg.Id == domain.ACTOR_ID_MQTT {
+			case domain.ACTOR_ID_MQTT:
 				state.mqttActorHealthy = true
 			}
 		}

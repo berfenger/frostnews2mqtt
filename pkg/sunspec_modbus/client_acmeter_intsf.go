@@ -194,7 +194,7 @@ func (inv *ACMeterIntSFModbusReader) survey() error {
 	// survey blocks
 	blocks := acMeterIntSFModbusBlocks{}
 	var baseAddr uint16 = 40002
-	var n int = 0
+	n := 0
 	for {
 		block, err := surveyModbusBlock(inv.client, baseAddr)
 		if err != nil {

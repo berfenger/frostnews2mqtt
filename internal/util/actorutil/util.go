@@ -22,75 +22,10 @@ func PipeToSelfWithRecover(ctx actor.Context, future *actor.Future, mapFn func(e
 	})
 }
 
-// func OrCommandErrorResponse[T any](fn func() (*T, error)) any {
-// 	value, err := fn()
-// 	var resp any
-// 	if err != nil {
-// 		resp = CommandErrorResponse{
-// 			Error: fmt.Sprintf("%s", err),
-// 		}
-// 	} else {
-// 		resp = *value
-// 	}
-// 	return resp
-// }
-
-// func DoBackgroundTask[T any](ctx actor.Context, fn func() T) {
-// 	self := ctx.Self()
-// 	sender := ctx.Sender()
-// 	go func() {
-// 		result := fn()
-// 		ctx.Send(self, backgroundTaskResult{
-// 			message: result,
-// 			replyTo: sender,
-// 		})
-// 	}()
-// }
-
-// type BackgroundTask[T any] struct {
-// 	ctx actor.Context
-// 	fn  func() T
-// }
-
-// func NewBackgroundTask[T any](ctx actor.Context, fn func() T) BackgroundTask[T] {
-// 	return BackgroundTask[T]{
-// 		ctx: ctx,
-// 		fn:  fn,
-// 	}
-// }
-
-// func MapBackgroundTask[T, T2 any](t BackgroundTask[T], fn func(T) T2) BackgroundTask[T2] {
-// 	return NewBackgroundTask(t.ctx, func() T2 { return fn(t.fn()) })
-// }
-
-// func (t BackgroundTask[T]) PipeTo(pid *actor.PID) {
-// 	go func() {
-// 		result := t.fn()
-// 		t.ctx.Send(pid, result)
-// 	}()
-// }
-
-// func (t BackgroundTask[T]) Map(fn func(T) any) BackgroundTask[any] {
-// 	return NewBackgroundTask(t.ctx, func() any { return fn(t.fn()) })
-// }
-
-// func TestActorSystem() *actor.ActorSystem {
-// 	ll := logrus.New()
-// 	ll.SetLevel(logrus.DebugLevel)
-// 	return actor.NewActorSystem(actor.WithLoggerFactory(func(system *actor.ActorSystem) *slog.Logger {
-
-// 		// create a new logger
-// 		return slog.New(tint.NewHandler(ll.Out, &tint.Options{
-// 			Level:      slog.LevelDebug,
-// 			TimeFormat: time.DateTime,
-// 		}))
-// 	}))
-// }
-
 func NewActorSystemWithZapLogger(logger *zap.Logger) *actor.ActorSystem {
 	stdOutLogger := zap.NewStdLog(logger)
 
-	var slogLevel slog.Level = slog.LevelInfo
+	slogLevel := slog.LevelInfo
 
 	switch logger.Level() {
 	case zap.DebugLevel:
@@ -120,15 +55,16 @@ func ActorLogger(actorName string, logger *zap.Logger) *zap.Logger {
 }
 
 func ParsedMQTTCommandToCommand(cmd mqtt.ParsedMQTTCommand) (domain.ActorRequest, error) {
-	if cmd.DeviceId == domain.SWITCH_ID_BATTERY_HOLD {
+	switch cmd.DeviceId {
+	case domain.SWITCH_ID_BATTERY_HOLD:
 		return domain.BatteryControlHoldRequest{
 			Enable: cmd.Payload == "on",
 		}, nil
-	} else if cmd.DeviceId == domain.SWITCH_ID_BATTERY_CHARGE {
+	case domain.SWITCH_ID_BATTERY_CHARGE:
 		return domain.BatteryControlChargeRequest{
 			Enable: cmd.Payload == "on",
 		}, nil
-	} else if cmd.DeviceId == domain.INPUT_NUMBER_ID_BATTERY_CHARGE_TARGET_SOC {
+	case domain.INPUT_NUMBER_ID_BATTERY_CHARGE_TARGET_SOC:
 		value, err := strconv.ParseUint(cmd.Payload, 10, 8)
 		if err != nil || value > 100 {
 			return nil, err
@@ -136,6 +72,7 @@ func ParsedMQTTCommandToCommand(cmd mqtt.ParsedMQTTCommand) (domain.ActorRequest
 		return domain.BatteryControlSetTargetSoCRequest{
 			TargetSoC: uint(value),
 		}, nil
+	default:
+		return nil, nil
 	}
-	return nil, nil
 }

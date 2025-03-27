@@ -70,7 +70,9 @@ func (state *ModbusActor) StartingReceive(ctx actor.Context) {
 		state.behavior.Become(state.DefaultReceive)
 		state.stash.UnstashAll(ctx)
 	case *actor.Restarting:
+		//nolint errcheck
 		state.acMeter.Close()
+		//nolint errcheck
 		state.inverter.Close()
 	default:
 		state.logger.Debug("modbus@starting: stash", zap.String("type", fmt.Sprintf("%T", msg)))
@@ -181,7 +183,9 @@ func (state *ModbusActor) DefaultReceive(ctx actor.Context) {
 		}).WithTimeout(2 * time.Second).PipeTo(ctx.Self())
 		state.behavior.BecomeStacked(state.WaitingModbus)
 	case *actor.Stopping:
+		//nolint errcheck
 		state.inverter.Close()
+		//nolint errcheck
 		state.acMeter.Close()
 	default:
 		state.logger.Debug("modbus@default default recv", zap.String("type", fmt.Sprintf("%T", msg)))
@@ -204,7 +208,9 @@ func (state *ModbusActor) WaitingModbus(ctx actor.Context) {
 			state.stash.UnstashAll(ctx)
 		}
 	case *actor.Stopping:
+		//nolint errcheck
 		state.inverter.Close()
+		//nolint errcheck
 		state.acMeter.Close()
 	default:
 		state.logger.Debug("modbus@WaitingModbus stash", zap.String("type", fmt.Sprintf("%T", msg)))

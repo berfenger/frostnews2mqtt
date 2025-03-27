@@ -33,7 +33,7 @@ func (cfg *DefaultBatteryControlLogic) Loop(prevPowerValue int32, storageState *
 
 		realPVPower := math.Max(0, inverterPowerFlow.PVPowerWatt)
 
-		var newPowerValue float64 = float64(prevPowerValue)
+		newPowerValue := float64(prevPowerValue)
 		if prevPowerValue == -1 {
 			// track house power consumption
 			houseConsumption := inverterPowerFlow.ACPowerWatt + acMeterPowerFlow.CurrentPowerFlowWatt
