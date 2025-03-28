@@ -11,7 +11,7 @@ env:
 
 builds:
 - id: api-build
-  binary: frostnews2mqtt
+  binary: bin/{{.ProjectName}}
   main: ./cmd/api
   goos:
     - darwin
@@ -23,6 +23,11 @@ builds:
     - arm
   goarm:
     - 7
+  ignore:
+    - goos: windows
+      goarch: arm64
+    - goos: windows
+      goarch: arm
   env:
     - CGO_ENABLED=0
   ldflags:
@@ -40,11 +45,13 @@ archives:
     format_overrides:
       - goos: windows
         formats: [ 'zip' ]
+    strip_binary_directory: true
     builds_info:
       group: root
       owner: root
     files:
       - README.md
+      - LICENSE
 
 checksum:
   name_template: 'checksums.txt'
