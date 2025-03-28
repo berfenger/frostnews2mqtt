@@ -2,11 +2,12 @@ package actor
 
 import (
 	"fmt"
-	"frostnews2mqtt/internal/config"
-	"frostnews2mqtt/internal/core/domain"
-	"frostnews2mqtt/internal/core/events"
-	"frostnews2mqtt/internal/util/actorutil"
 	"time"
+
+	"github.com/berfenger/frostnews2mqtt/internal/config"
+	"github.com/berfenger/frostnews2mqtt/internal/core/domain"
+	"github.com/berfenger/frostnews2mqtt/internal/core/events"
+	"github.com/berfenger/frostnews2mqtt/internal/util/actorutil"
 
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/asynkron/protoactor-go/scheduler"

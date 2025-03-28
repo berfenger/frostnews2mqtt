@@ -3,13 +3,14 @@ package actor
 import (
 	"errors"
 	"fmt"
-	adactor "frostnews2mqtt/internal/adapter/actor"
-	"frostnews2mqtt/internal/config"
-	"frostnews2mqtt/internal/core/domain"
-	"frostnews2mqtt/internal/core/service"
-	"frostnews2mqtt/internal/util/actorutil"
 	"log"
 	"time"
+
+	adactor "github.com/berfenger/frostnews2mqtt/internal/adapter/actor"
+	"github.com/berfenger/frostnews2mqtt/internal/config"
+	"github.com/berfenger/frostnews2mqtt/internal/core/domain"
+	"github.com/berfenger/frostnews2mqtt/internal/core/service"
+	"github.com/berfenger/frostnews2mqtt/internal/util/actorutil"
 
 	"github.com/asynkron/protoactor-go/actor"
 	"go.uber.org/zap"

@@ -12,12 +12,12 @@ import (
 	"syscall"
 	"time"
 
-	adactor "frostnews2mqtt/internal/adapter/actor"
-	"frostnews2mqtt/internal/config"
-	"frostnews2mqtt/internal/core/actor"
-	"frostnews2mqtt/internal/server"
-	"frostnews2mqtt/internal/util/actorutil"
-	"frostnews2mqtt/pkg/sunspec_modbus"
+	adactor "github.com/berfenger/frostnews2mqtt/internal/adapter/actor"
+	"github.com/berfenger/frostnews2mqtt/internal/config"
+	"github.com/berfenger/frostnews2mqtt/internal/core/actor"
+	"github.com/berfenger/frostnews2mqtt/internal/server"
+	"github.com/berfenger/frostnews2mqtt/internal/util/actorutil"
+	"github.com/berfenger/frostnews2mqtt/pkg/sunspec_modbus"
 
 	pactor "github.com/asynkron/protoactor-go/actor"
 	"github.com/spf13/viper"

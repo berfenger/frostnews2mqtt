@@ -3,11 +3,12 @@ package mqtt
 import (
 	"errors"
 	"fmt"
-	"frostnews2mqtt/internal/config"
 	"math/rand/v2"
 	"regexp"
 	"strconv"
 	"time"
+
+	"github.com/berfenger/frostnews2mqtt/internal/config"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 )

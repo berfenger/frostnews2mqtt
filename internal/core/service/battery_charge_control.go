@@ -1,10 +1,11 @@
 package service
 
 import (
-	"frostnews2mqtt/internal/core/domain"
-	"frostnews2mqtt/internal/core/port"
-	"frostnews2mqtt/pkg/sunspec_modbus"
 	"math"
+
+	"github.com/berfenger/frostnews2mqtt/internal/core/domain"
+	"github.com/berfenger/frostnews2mqtt/internal/core/port"
+	"github.com/berfenger/frostnews2mqtt/pkg/sunspec_modbus"
 
 	"go.uber.org/zap"
 )

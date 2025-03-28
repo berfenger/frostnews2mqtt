@@ -1,11 +1,12 @@
 package actorutil
 
 import (
-	"frostnews2mqtt/internal/core/domain"
-	"frostnews2mqtt/internal/mqtt"
 	"log/slog"
 	"strconv"
 	"time"
+
+	"github.com/berfenger/frostnews2mqtt/internal/core/domain"
+	"github.com/berfenger/frostnews2mqtt/internal/mqtt"
 
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/lmittmann/tint"

@@ -1,7 +1,7 @@
 package actorutil
 
 import (
-	"frostnews2mqtt/internal/core/domain"
+	"github.com/berfenger/frostnews2mqtt/internal/core/domain"
 
 	"github.com/asynkron/protoactor-go/actor"
 )

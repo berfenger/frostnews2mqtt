@@ -2,9 +2,10 @@ package server
 
 import (
 	"fmt"
-	"frostnews2mqtt/internal/config"
 	"net/http"
 	"time"
+
+	"github.com/berfenger/frostnews2mqtt/internal/config"
 
 	"github.com/asynkron/protoactor-go/actor"
 	_ "github.com/joho/godotenv/autoload"

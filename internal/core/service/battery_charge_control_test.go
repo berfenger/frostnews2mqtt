@@ -2,11 +2,12 @@ package service
 
 import (
 	"fmt"
-	"frostnews2mqtt/internal/core/domain"
-	"frostnews2mqtt/internal/core/port"
-	"frostnews2mqtt/pkg/sunspec_modbus"
 	"math"
 	"testing"
+
+	"github.com/berfenger/frostnews2mqtt/internal/core/domain"
+	"github.com/berfenger/frostnews2mqtt/internal/core/port"
+	"github.com/berfenger/frostnews2mqtt/pkg/sunspec_modbus"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

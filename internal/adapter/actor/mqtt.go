@@ -3,11 +3,12 @@ package actor
 import (
 	"encoding/json"
 	"fmt"
-	"frostnews2mqtt/internal/config"
-	"frostnews2mqtt/internal/core/domain"
-	"frostnews2mqtt/internal/mqtt"
-	"frostnews2mqtt/internal/util/actorutil"
 	"time"
+
+	"github.com/berfenger/frostnews2mqtt/internal/config"
+	"github.com/berfenger/frostnews2mqtt/internal/core/domain"
+	"github.com/berfenger/frostnews2mqtt/internal/mqtt"
+	"github.com/berfenger/frostnews2mqtt/internal/util/actorutil"
 
 	"github.com/asynkron/protoactor-go/actor"
 	pahomqtt "github.com/eclipse/paho.mqtt.golang"

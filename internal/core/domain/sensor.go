@@ -4,7 +4,8 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
-	"frostnews2mqtt/pkg/sunspec_modbus"
+
+	"github.com/berfenger/frostnews2mqtt/pkg/sunspec_modbus"
 
 	"github.com/carlmjohnson/versioninfo"
 )

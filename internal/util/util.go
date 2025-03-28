@@ -1,7 +1,7 @@
 package util
 
 import (
-	"frostnews2mqtt/internal/config"
+	"github.com/berfenger/frostnews2mqtt/internal/config"
 
 	"go.uber.org/zap"
 )

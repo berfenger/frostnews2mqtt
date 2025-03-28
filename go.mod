@@ -1,4 +1,4 @@
-module frostnews2mqtt
+module github.com/berfenger/frostnews2mqtt
 
 go 1.23.1
 

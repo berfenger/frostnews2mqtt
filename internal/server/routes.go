@@ -1,9 +1,10 @@
 package server
 
 import (
-	"frostnews2mqtt/internal/core/domain"
 	"net/http"
 	"time"
+
+	"github.com/berfenger/frostnews2mqtt/internal/core/domain"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"

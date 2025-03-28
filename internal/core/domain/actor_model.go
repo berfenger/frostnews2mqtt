@@ -1,6 +1,6 @@
 package domain
 
-import "frostnews2mqtt/pkg/sunspec_modbus"
+import "github.com/berfenger/frostnews2mqtt/pkg/sunspec_modbus"
 
 const (
 	ACTOR_ID_MASTER          = "master"

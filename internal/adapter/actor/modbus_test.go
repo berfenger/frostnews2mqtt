@@ -1,11 +1,12 @@
 package actor
 
 import (
-	"frostnews2mqtt/internal/core/domain"
-	"frostnews2mqtt/internal/util/actorutil"
-	"frostnews2mqtt/pkg/sunspec_modbus"
 	"testing"
 	"time"
+
+	"github.com/berfenger/frostnews2mqtt/internal/core/domain"
+	"github.com/berfenger/frostnews2mqtt/internal/util/actorutil"
+	"github.com/berfenger/frostnews2mqtt/pkg/sunspec_modbus"
 
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/stretchr/testify/assert"

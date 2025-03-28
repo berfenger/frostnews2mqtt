@@ -2,7 +2,8 @@ package mqtt
 
 import (
 	"fmt"
-	"frostnews2mqtt/internal/core/domain"
+
+	"github.com/berfenger/frostnews2mqtt/internal/core/domain"
 )
 
 type HADiscoveryConfig struct {

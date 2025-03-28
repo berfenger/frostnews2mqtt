@@ -1,8 +1,8 @@
 package port
 
 import (
-	"frostnews2mqtt/internal/core/domain"
-	"frostnews2mqtt/pkg/sunspec_modbus"
+	"github.com/berfenger/frostnews2mqtt/internal/core/domain"
+	"github.com/berfenger/frostnews2mqtt/pkg/sunspec_modbus"
 )
 
 type BatteryChargeControlLogic interface {
