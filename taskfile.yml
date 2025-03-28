@@ -73,3 +73,32 @@ tasks:
   service:down:
     desc: "Stop services"
     cmd: docker-compose down
+
+  docker:build:
+    desc: "Build docker image"
+    cmd: docker build . --tag {{.APP_NAME}}
+    deps:
+      - task: build
+    requires:
+      vars:
+        - APP_NAME
+
+  dockerhub:login:
+    desc: "Login on docker hub"
+    cmd: docker login -u {{.DOCKER_HUB_USER}} -p {{.DOCKER_HUB_PASSWORD}}
+    requires:
+      vars:
+        - DOCKER_HUB_USER
+        - DOCKER_HUB_PASSWORD
+
+  dockerhub:publish:
+    desc: "Publish docker image"
+    cmds:
+      - docker image tag {{.APP_NAME}} {{.DOCKER_HUB_USER}}/{{.APP_NAME}}:edge
+      - docker push {{.DOCKER_HUB_USER}}/{{.APP_NAME}}:edge
+    deps:
+      - task: docker:build
+    requires:
+      vars:
+        - APP_NAME
+        - DOCKER_HUB_USER
