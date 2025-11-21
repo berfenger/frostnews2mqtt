@@ -2,6 +2,7 @@ package actor
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -135,7 +136,7 @@ func (state *MQTTActor) DefaultReceive(ctx actor.Context) {
 	case ParsedCommand:
 		// route command to parent
 		state.logger.Debug("mqtt@default parsedCommand", zap.Any("command", msg.Command))
-		ctx.Send(ctx.Parent(), msg)
+		ctx.Request(ctx.Parent(), msg)
 	case domain.PublishMessageRequest:
 		state.logger.Debug("mqtt@default PublishMessageRequest", zap.Any("message", msg))
 		state.publishMessage(ctx, msg.Topic, msg.Payload, msg.Retain, actorutil.ForRequest(msg).ReplyTo(ctx))
@@ -207,7 +208,7 @@ func (state *MQTTActor) publishSensorValue(ctx actor.Context, event domain.Senso
 	msg := state.event2MQTTMessage(event)
 	if msg != nil {
 		state.logger.Sugar().Debugf("mqtt@publish: sensor publish %s => %s", msg.topic, msg.message)
-		state.client.Publish(msg.topic, msg.message, 1, msg.retain || retain, func(err error) {
+		state.client.Publish(msg.topic, msg.message, 1, retain || msg.retain, func(err error) {
 			ctx.Send(ctx.Self(), publishResult{Error: err})
 		}, 5*time.Second)
 		state.behavior.BecomeStacked(state.EventPublishResultReceive)
@@ -303,6 +304,32 @@ func (state *MQTTActor) stop() {
 	state.client.Publish(state.client.BridgeStateTopic(), mqtt.MQTT_PAYLOAD_OFFLINE, 0, true, func(error) {}, 500*time.Millisecond)
 	if state.client != nil {
 		state.client.Disconnect(500 * time.Millisecond)
+	}
+}
+
+type MasterMQTTActor struct {
+	ActorProv func() *MQTTActor
+	pid       *actor.PID
+}
+
+func (state *MasterMQTTActor) Receive(ctx actor.Context) {
+	switch msg := ctx.Message().(type) {
+	case *actor.Started:
+		mqttProps := actor.PropsFromProducer(func() actor.Actor {
+			return state.ActorProv()
+		})
+		pid := ctx.Spawn(mqttProps)
+		state.pid = pid
+	case *actor.Terminated:
+		panic(errors.New("could not initialize MQTT connection"))
+	default:
+		if ctx.Sender() != nil && state.pid != nil && ctx.Sender().Equal(state.pid) {
+			// send ParsedCommand to parent
+			ctx.Send(ctx.Parent(), msg)
+		} else {
+			// forward other messages to MQTT actor
+			ctx.RequestWithCustomSender(state.pid, msg, ctx.Sender())
+		}
 	}
 }
 

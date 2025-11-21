@@ -43,7 +43,6 @@ func TestMasterActor(t *testing.T) {
 	res, err := context.RequestFuture(pid, domain.ActorHealthRequest{}, 10*time.Second).Result()
 	if err != nil {
 		t.Error(err)
-		//return
 	}
 	healthResp, ok := res.(domain.ActorHealthResponse)
 	assert.True(t, ok)

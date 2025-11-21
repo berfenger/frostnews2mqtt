@@ -257,10 +257,15 @@ func (state *MasterOfPuppetsActor) startHADiscoveryActor(ctx actor.Context) (*ac
 
 func (state *MasterOfPuppetsActor) startMQTTActor(ctx actor.Context) (*actor.PID, error) {
 
-	supervisor := actor.NewExponentialBackoffStrategy(10*time.Second, 1*time.Second)
+	supervisor := actor.NewExponentialBackoffStrategy(5*time.Second, 10*time.Second)
 
+	mqttActor := &adactor.MasterMQTTActor{
+		ActorProv: func() *adactor.MQTTActor {
+			return state.mqttActorProvider()
+		},
+	}
 	mqttProps := actor.PropsFromProducer(func() actor.Actor {
-		return state.mqttActorProvider()
+		return mqttActor
 	}, actor.WithSupervisor(supervisor))
 	mqttActorPID, err := ctx.SpawnNamed(mqttProps, domain.ACTOR_ID_MQTT)
 	if err != nil {
