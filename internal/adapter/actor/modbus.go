@@ -270,7 +270,6 @@ func (a *ModbusActor) getDevicesInfo() (*domain.GetDevicesInfoResponse, error) {
 		acMeter, err = a.acMeter.GetInfo()
 		if err != nil {
 			logger.Error(err)
-			return nil, err
 		}
 	}
 	return &domain.GetDevicesInfoResponse{
@@ -295,7 +294,6 @@ func (a *ModbusActor) getPowerFlow() (*domain.GetPowerFlowResponse, error) {
 		acMeter, err = a.acMeter.GetPowerFlow()
 		if err != nil {
 			logger.Error(err)
-			return nil, err
 		}
 	}
 	return &domain.GetPowerFlowResponse{
