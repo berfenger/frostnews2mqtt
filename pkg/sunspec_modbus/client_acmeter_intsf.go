@@ -130,14 +130,6 @@ func (reader ACMeterIntSFModbusReader) GetCurrentPowerFlowWatt() (float64, error
 	return reader.applySFint16(int16(totalRealPower), totalRealPowerSF), nil
 }
 
-func (reader ACMeterIntSFModbusReader) GetPowerFlow() (*ACMeterPowerFlow, error) {
-	acpf, err := reader.getPowerFlow()
-	if err != nil {
-		return nil, err
-	}
-	return acpf, nil
-}
-
 func (reader ACMeterIntSFModbusReader) getGridFrequency() (float64, error) {
 	freq, err := reader.readRegisters(reader.blocks.acMeter+16, 2, modbus.HOLDING_REGISTER)
 	if err != nil {
@@ -170,7 +162,7 @@ func (reader ACMeterIntSFModbusReader) getPhaseAVoltage() (float64, error) {
 	return reader.applySF(phaseAVoltage, phaseAVoltage_SF), nil
 }
 
-func (reader ACMeterIntSFModbusReader) getPowerFlow() (*ACMeterPowerFlow, error) {
+func (reader ACMeterIntSFModbusReader) GetPowerFlow() (*ACMeterPowerFlow, error) {
 	totalRealPower, err := reader.GetCurrentPowerFlowWatt()
 	if err != nil {
 		return nil, err
