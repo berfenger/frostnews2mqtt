@@ -49,6 +49,14 @@ func (reader ModbusClient) applySFfloat64Inv(number float64, sf uint16) float64 
 	return number / math.Pow(10, float64(int16(sf)))
 }
 
+func (reader ModbusClient) bytesToUint32(bytes []byte) uint32 {
+	return bytesToUint32s(modbus.BIG_ENDIAN, modbus.HIGH_WORD_FIRST, bytes)[0]
+}
+
+func (reader ModbusClient) bytesToUint16(bytes []byte) uint16 {
+	return bytesToUint16(modbus.BIG_ENDIAN, bytes)
+}
+
 func (reader ModbusClient) readRegister(addr uint16, regType modbus.RegType) (uint16, error) {
 	defer RecordTimer("ReadRegister", reader.instrument)()
 	return reader.client.ReadRegister(addr, regType)
@@ -59,6 +67,7 @@ func (reader ModbusClient) readRegisters(addr uint16, quantity uint16, regType m
 	return reader.client.ReadRegisters(addr, quantity, regType)
 }
 
+// nolint unused suppressed for future use
 func (reader ModbusClient) readUint32(addr uint16, regType modbus.RegType) (uint32, error) {
 	defer RecordTimer("ReadUint32", reader.instrument)()
 	return reader.client.ReadUint32(addr, regType)

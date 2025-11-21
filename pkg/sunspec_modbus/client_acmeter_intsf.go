@@ -121,43 +121,69 @@ func (reader ACMeterIntSFModbusReader) GetInfo() (*ACMeterInfo, error) {
 }
 
 func (reader ACMeterIntSFModbusReader) GetCurrentPowerFlowWatt() (float64, error) {
-	totalRealPower, err := reader.readRegister(reader.blocks.acMeter+18, modbus.HOLDING_REGISTER)
+	regs, err := reader.readRegisters(reader.blocks.acMeter+18, 5, modbus.HOLDING_REGISTER)
 	if err != nil {
 		return 0, err
 	}
-	totalRealPowerSF, err := reader.readRegister(reader.blocks.acMeter+22, modbus.HOLDING_REGISTER)
-	if err != nil {
-		return 0, err
-	}
+	totalRealPower := regs[0]   // reader.blocks.acMeter+18
+	totalRealPowerSF := regs[4] // reader.blocks.acMeter+22
 	return reader.applySFint16(int16(totalRealPower), totalRealPowerSF), nil
 }
 
 func (reader ACMeterIntSFModbusReader) GetPowerFlow() (*ACMeterPowerFlow, error) {
+	acpf, err := reader.getPowerFlow()
+	if err != nil {
+		return nil, err
+	}
+	return acpf, nil
+}
+
+func (reader ACMeterIntSFModbusReader) getGridFrequency() (float64, error) {
+	freq, err := reader.readRegisters(reader.blocks.acMeter+16, 2, modbus.HOLDING_REGISTER)
+	if err != nil {
+		return 0, err
+	}
+	return reader.applySF(freq[0], freq[1]), nil
+}
+
+func (reader ACMeterIntSFModbusReader) getEnergyCounterValues() (totalEnergyExported float64, totalEnergyImported float64, err error) {
+	regs, err := reader.client.ReadRawBytes(reader.blocks.acMeter+38, 34, modbus.HOLDING_REGISTER)
+	if err != nil {
+		return 0, 0, err
+	}
+	rawTotalEnergyExported := reader.bytesToUint32(regs[0:4])   // reader.blocks.acMeter+38
+	rawTotalEnergyImported := reader.bytesToUint32(regs[16:20]) // reader.blocks.acMeter+46
+	totWh_SF := reader.bytesToUint16(regs[32:34])               // reader.blocks.acMeter+54
+	totalEnergyExported = reader.applySFuint32(rawTotalEnergyExported, totWh_SF) / 1000
+	totalEnergyImported = reader.applySFuint32(rawTotalEnergyImported, totWh_SF) / 1000
+	err = nil
+	return
+}
+
+func (reader ACMeterIntSFModbusReader) getPhaseAVoltage() (float64, error) {
+	regs, err := reader.readRegisters(reader.blocks.acMeter+8, 8, modbus.HOLDING_REGISTER)
+	if err != nil {
+		return 0, err
+	}
+	phaseAVoltage := regs[0]    // reader.blocks.acMeter+8
+	phaseAVoltage_SF := regs[7] // reader.blocks.acMeter+15
+	return reader.applySF(phaseAVoltage, phaseAVoltage_SF), nil
+}
+
+func (reader ACMeterIntSFModbusReader) getPowerFlow() (*ACMeterPowerFlow, error) {
 	totalRealPower, err := reader.GetCurrentPowerFlowWatt()
 	if err != nil {
 		return nil, err
 	}
-	totalEnergyExported, err := reader.readUint32(reader.blocks.acMeter+38, modbus.HOLDING_REGISTER)
+	totalEnergyExported, totalEnergyImported, err := reader.getEnergyCounterValues()
 	if err != nil {
 		return nil, err
 	}
-	totalEnergyImported, err := reader.readUint32(reader.blocks.acMeter+46, modbus.HOLDING_REGISTER)
+	freq, err := reader.getGridFrequency()
 	if err != nil {
 		return nil, err
 	}
-	totWh_SF, err := reader.readRegister(reader.blocks.acMeter+54, modbus.HOLDING_REGISTER)
-	if err != nil {
-		return nil, err
-	}
-	freq, err := reader.readRegisters(reader.blocks.acMeter+16, 2, modbus.HOLDING_REGISTER)
-	if err != nil {
-		return nil, err
-	}
-	phaseAVoltage, err := reader.readRegister(reader.blocks.acMeter+8, modbus.HOLDING_REGISTER)
-	if err != nil {
-		return nil, err
-	}
-	phaseAVoltage_SF, err := reader.readRegister(reader.blocks.acMeter+15, modbus.HOLDING_REGISTER)
+	phaseAVoltage, err := reader.getPhaseAVoltage()
 	if err != nil {
 		return nil, err
 	}
@@ -173,10 +199,10 @@ func (reader ACMeterIntSFModbusReader) GetPowerFlow() (*ACMeterPowerFlow, error)
 		CurrentPowerFlowWatt:   totalRealPower,
 		CurrentImportPowerWatt: importPower,
 		CurrentExportPowerWatt: exportPower,
-		TotalEnergyExportedKWh: reader.applySFuint32(totalEnergyExported, totWh_SF) / 1000,
-		TotalEnergyImportedKWh: reader.applySFuint32(totalEnergyImported, totWh_SF) / 1000,
-		Frequency:              reader.applySF(freq[0], freq[1]),
-		PhaseAVoltage:          reader.applySF(phaseAVoltage, phaseAVoltage_SF),
+		TotalEnergyExportedKWh: totalEnergyExported,
+		TotalEnergyImportedKWh: totalEnergyImported,
+		Frequency:              freq,
+		PhaseAVoltage:          phaseAVoltage,
 	}, nil
 }
 
