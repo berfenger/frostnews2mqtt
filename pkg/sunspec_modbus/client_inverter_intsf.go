@@ -229,7 +229,7 @@ func (inv InverterIntSFModbusReader) SupportsPowerControl() (bool, error) {
 func traceLoggerInstrumentation(logger *zap.Logger) *ModbusInstrument {
 	return &ModbusInstrument{
 		RecordTime: func(fnName string, readTime time.Duration) {
-			logger.Sugar().Debug("modbus [%s]: %d millis", fnName, readTime.Milliseconds())
+			logger.Sugar().Debugf("modbus [%s]: %d millis", fnName, readTime.Milliseconds())
 		},
 	}
 }
