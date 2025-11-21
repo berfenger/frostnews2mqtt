@@ -1,6 +1,7 @@
 package actor
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -391,3 +392,23 @@ func mapTaskResult[T any](sender *actor.PID) func(t *T) *backgroundTaskResult {
 }
 
 type timeoutEnd struct{}
+
+type MasterModbusActor struct {
+	ActorProv func() *ModbusActor
+	pid       *actor.PID
+}
+
+func (state *MasterModbusActor) Receive(ctx actor.Context) {
+	switch msg := ctx.Message().(type) {
+	case *actor.Started:
+		modbusProps := actor.PropsFromProducer(func() actor.Actor {
+			return state.ActorProv()
+		})
+		pid := ctx.Spawn(modbusProps)
+		state.pid = pid
+	case *actor.Terminated:
+		panic(errors.New("could not initialize Modbus connection"))
+	default:
+		ctx.RequestWithCustomSender(state.pid, msg, ctx.Sender())
+	}
+}

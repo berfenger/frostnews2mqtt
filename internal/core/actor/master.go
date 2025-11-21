@@ -204,10 +204,15 @@ func (state *MasterOfPuppetsActor) HealthCheckReceive(ctx actor.Context) {
 
 func (state *MasterOfPuppetsActor) startModbusActor(ctx actor.Context) (*actor.PID, error) {
 
-	supervisor := actor.NewExponentialBackoffStrategy(10*time.Second, 1*time.Second)
+	supervisor := actor.NewExponentialBackoffStrategy(5*time.Second, 1*time.Second)
 
+	modbusActor := &adactor.MasterModbusActor{
+		ActorProv: func() *adactor.ModbusActor {
+			return state.modbusActorProvider()
+		},
+	}
 	modbusProps := actor.PropsFromProducer(func() actor.Actor {
-		return state.modbusActorProvider()
+		return modbusActor
 	}, actor.WithSupervisor(supervisor))
 	modbusActorPID, err := ctx.SpawnNamed(modbusProps, domain.ACTOR_ID_MODBUS)
 	if err != nil {
