@@ -99,17 +99,13 @@ func (block *modbusBlock) isEndBlock() bool {
 }
 
 func surveyModbusBlock(client *modbus.ModbusClient, baseAddr uint16) (*modbusBlock, error) {
-	wellKnownValue, err := client.ReadRegister(baseAddr, modbus.HOLDING_REGISTER)
-	if err != nil {
-		return nil, err
-	}
-	length, err := client.ReadRegister(baseAddr+1, modbus.HOLDING_REGISTER)
+	regs, err := client.ReadRegisters(baseAddr, 2, modbus.HOLDING_REGISTER)
 	if err != nil {
 		return nil, err
 	}
 	return &modbusBlock{
-		id:       wellKnownValue,
-		length:   length,
+		id:       regs[0], // well-known block ID
+		length:   regs[1], // block length in registers
 		baseAddr: baseAddr,
 	}, nil
 }
