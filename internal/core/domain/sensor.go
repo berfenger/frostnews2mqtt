@@ -4,6 +4,7 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
+	"time"
 
 	"github.com/berfenger/frostnews2mqtt/pkg/sunspec_modbus"
 
@@ -57,11 +58,15 @@ const (
 )
 
 func BridgeDevice(baseTopic string) Device {
+	version := versioninfo.Short()
+	if version == "devel" {
+		version = fmt.Sprintf("dev-%s", time.Now().Format("2006.01.02.150405"))
+	}
 	return Device{
 		Id:           fmt.Sprintf("frostnews_bridge_%s", md5HashShort(baseTopic)),
 		Manufacturer: "ACasal",
 		Model:        "Frostnews",
-		Version:      versioninfo.Short(),
+		Version:      version,
 		Name:         fmt.Sprintf("Frostnews %s", md5HashShort(baseTopic)),
 	}
 }
