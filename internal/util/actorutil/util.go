@@ -13,7 +13,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func PipeToSelfWithRecover(ctx actor.Context, future *actor.Future, mapFn func(error) any) {
+func PipeToSelfWithRecover(ctx actor.Context, future actor.Future, mapFn func(error) any) {
 	ctx.ReenterAfter(future, func(msg any, err error) {
 		if err != nil {
 			ctx.Send(ctx.Self(), mapFn(err))
