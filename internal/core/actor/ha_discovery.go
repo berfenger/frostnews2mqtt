@@ -95,13 +95,16 @@ func (state *HADiscoveryActor) WaitingHealthyReceive(ctx actor.Context) {
 
 			if state.modbusActorHealthy && state.mqttActorHealthy {
 				// Ask Modbus GetDevicesInfoRequest
-				actorutil.PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.modbusActor, domain.GetDevicesInfoRequest{}, 2*time.Second), func(err error) any {
-					return domain.GetDevicesInfoResponse{
-						ActorResponseMixIn: domain.ActorResponseMixIn{
-							ResponseError: err,
-						},
-					}
-				})
+				actorutil.PipeToSelfWithRecover(
+					ctx,
+					ctx.RequestFuture(state.modbusActor, domain.GetDevicesInfoRequest{}, time.Duration(state.config.InverterModbusTcp.ReadTimeoutMillis)*time.Millisecond),
+					func(err error) any {
+						return domain.GetDevicesInfoResponse{
+							ActorResponseMixIn: domain.ActorResponseMixIn{
+								ResponseError: err,
+							},
+						}
+					})
 				state.behavior.Become(state.WaitingInfoReceive)
 				state.stash.UnstashAll(ctx)
 			} else {

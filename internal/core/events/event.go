@@ -5,7 +5,7 @@ import (
 	"github.com/berfenger/frostnews2mqtt/pkg/sunspec_modbus"
 )
 
-func InverterPowerFlowToUpdateEvents(pf *sunspec_modbus.InverterPowerFlow) []domain.SensorUpdateEvent {
+func InverterPowerFlowToUpdateEvents(pf *sunspec_modbus.InverterPowerFlow, hasStorage bool) []domain.SensorUpdateEvent {
 	var events []domain.SensorUpdateEvent
 
 	// Inverter AC Power
@@ -45,30 +45,32 @@ func InverterPowerFlowToUpdateEvents(pf *sunspec_modbus.InverterPowerFlow) []dom
 		Value:    pf.PVPowerWatt,
 		Decimals: 2,
 	})
-	// Battery Charge Power
-	events = append(events, domain.FloatSensorUpdateEvent{
-		SensorUpdateEventMixIn: domain.SensorUpdateEventMixIn{
-			Id: domain.SENSOR_ID_BATTERY_CHARGE_POWER,
-		},
-		Value:    pf.BatteryChargePowerWatt,
-		Decimals: 2,
-	})
-	// Battery Discharge Power
-	events = append(events, domain.FloatSensorUpdateEvent{
-		SensorUpdateEventMixIn: domain.SensorUpdateEventMixIn{
-			Id: domain.SENSOR_ID_BATTERY_DISCHARGE_POWER,
-		},
-		Value:    pf.BatteryDischargePowerWatt,
-		Decimals: 2,
-	})
-	// Battery Power Flow
-	events = append(events, domain.FloatSensorUpdateEvent{
-		SensorUpdateEventMixIn: domain.SensorUpdateEventMixIn{
-			Id: domain.SENSOR_ID_BATTERY_POWER_FLOW,
-		},
-		Value:    pf.BatteryDCPowerFlowWatt,
-		Decimals: 2,
-	})
+	if hasStorage {
+		// Battery Charge Power
+		events = append(events, domain.FloatSensorUpdateEvent{
+			SensorUpdateEventMixIn: domain.SensorUpdateEventMixIn{
+				Id: domain.SENSOR_ID_BATTERY_CHARGE_POWER,
+			},
+			Value:    pf.BatteryChargePowerWatt,
+			Decimals: 2,
+		})
+		// Battery Discharge Power
+		events = append(events, domain.FloatSensorUpdateEvent{
+			SensorUpdateEventMixIn: domain.SensorUpdateEventMixIn{
+				Id: domain.SENSOR_ID_BATTERY_DISCHARGE_POWER,
+			},
+			Value:    pf.BatteryDischargePowerWatt,
+			Decimals: 2,
+		})
+		// Battery Power Flow
+		events = append(events, domain.FloatSensorUpdateEvent{
+			SensorUpdateEventMixIn: domain.SensorUpdateEventMixIn{
+				Id: domain.SENSOR_ID_BATTERY_POWER_FLOW,
+			},
+			Value:    pf.BatteryDCPowerFlowWatt,
+			Decimals: 2,
+		})
+	}
 
 	return events
 }

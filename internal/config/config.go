@@ -26,6 +26,7 @@ type InverterModbusTCPConfig struct {
 	MeterId                    uint   `mapstructure:"meter_id"`
 	InverterId                 uint   `mapstructure:"inverter_id"`
 	IgnoreFronius              bool   `mapstructure:"ignore_fronius"`
+	ReadTimeoutMillis          uint32 `mapstructure:"read_timeout_millis"`
 	ReadDelayAfterChangeMillis uint32 `mapstructure:"read_delay_after_change_millis"`
 }
 
