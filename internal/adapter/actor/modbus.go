@@ -315,9 +315,17 @@ func (a *ModbusActor) getDevicesInfo() (*domain.GetDevicesInfoResponse, error) {
 		}
 	}
 	if a.acMeter != nil {
-		acMeter, err = a.acMeter.GetInfo()
-		if err != nil {
-			logger.Error(err)
+		if !a.acMeter.IsOpen() {
+			err := a.acMeter.Open()
+			if err != nil {
+				logger.Warn(err)
+			}
+		}
+		if a.acMeter.IsOpen() {
+			acMeter, err = a.acMeter.GetInfo()
+			if err != nil {
+				logger.Error(err)
+			}
 		}
 	}
 	return &domain.GetDevicesInfoResponse{
@@ -339,9 +347,17 @@ func (a *ModbusActor) getPowerFlow() (*domain.GetPowerFlowResponse, error) {
 		}
 	}
 	if a.acMeter != nil {
-		acMeter, err = a.acMeter.GetPowerFlow()
-		if err != nil {
-			logger.Error(err)
+		if !a.acMeter.IsOpen() {
+			err := a.acMeter.Open()
+			if err != nil {
+				logger.Warn(err)
+			}
+		}
+		if a.acMeter.IsOpen() {
+			acMeter, err = a.acMeter.GetPowerFlow()
+			if err != nil {
+				logger.Error(err)
+			}
 		}
 	}
 	return &domain.GetPowerFlowResponse{

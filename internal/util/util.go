@@ -10,10 +10,11 @@ func LoadTestConfig() config.Config {
 	return config.Config{
 		LogLevel: zap.DebugLevel,
 		InverterModbusTcp: config.InverterModbusTCPConfig{
-			Host:       "-.-.-.-",
-			Port:       502,
-			MeterId:    200,
-			InverterId: 0,
+			Host:              "-.-.-.-",
+			Port:              502,
+			MeterId:           200,
+			InverterId:        0,
+			ReadTimeoutMillis: 5000,
 		},
 		MQTT: config.MQTTConfig{
 			Host: "localhost",

@@ -23,6 +23,7 @@ type ACMeterIntSFModbusReader struct {
 	ModbusClient
 	blocks        acMeterIntSFModbusBlocks
 	ignoreFronius bool
+	isOpen        bool
 }
 
 func CreateACMeterIntSFModbusReader(ip string, port uint, acMeterAddress uint8, timeout time.Duration,
@@ -56,6 +57,7 @@ func CreateACMeterIntSFModbusReader(ip string, port uint, acMeterAddress uint8, 
 			instrument: inst,
 		},
 		ignoreFronius: ignoreFronius,
+		isOpen:        false,
 	}
 	return &fron, nil
 }
@@ -67,7 +69,12 @@ func (reader *ACMeterIntSFModbusReader) Open() error {
 	if err := reader.survey(); err != nil {
 		return err
 	}
+	reader.isOpen = true
 	return nil
+}
+
+func (reader *ACMeterIntSFModbusReader) IsOpen() bool {
+	return reader.isOpen
 }
 
 func (reader ACMeterIntSFModbusReader) Close() error {

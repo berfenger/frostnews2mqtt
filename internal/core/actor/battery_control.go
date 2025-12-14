@@ -34,6 +34,9 @@ type BatteryControlActor struct {
 type batteryControlTick struct {
 }
 
+type checkAcMeterTick struct {
+}
+
 func NewBatteryControlActor(config *config.Config, modbusActor *actor.PID, mqttActor *actor.PID, control port.BatteryChargeControlLogic, logger *zap.Logger) *BatteryControlActor {
 	act := &BatteryControlActor{
 		config:             config,
@@ -81,12 +84,12 @@ func (state BCStartingState) Receive(ctx actor.Context) {
 			ctx,
 			ctx.RequestFuture(state.actor.modbusActor, domain.GetDevicesInfoRequest{}, state.actor.readTimeout),
 			func(err error) any {
-			return domain.GetDevicesInfoResponse{
-				ActorResponseMixIn: domain.ActorResponseMixIn{
-					ResponseError: err,
-				},
-			}
-		})
+				return domain.GetDevicesInfoResponse{
+					ActorResponseMixIn: domain.ActorResponseMixIn{
+						ResponseError: err,
+					},
+				}
+			})
 		state.actor.Become(BCWaitingInfoState{
 			actor: state.actor,
 		})
@@ -116,7 +119,13 @@ func (state BCWaitingInfoState) Receive(ctx actor.Context) {
 			panic(msg.GetResponseError())
 		}
 		state.actor.logger.Debug("battery_control@waitingInfo GetDevicesInfoResponse")
-		if msg.ACMeter != nil && msg.Inverter != nil {
+		// disable battery control if no storage is present
+		if msg.Inverter != nil && !msg.Inverter.HasStorage {
+			state.actor.logger.Info("battery_control@waitingInfo: inverter has no storage. Disabling battery control.\n")
+			state.actor.Become(BCDoneState{
+				actor: state.actor,
+			})
+		} else if msg.ACMeter != nil && msg.Inverter != nil {
 			// auto discover MaxGridImportPower if necessary
 			if state.actor.control.MaxGridImportPower() <= 0 {
 				state.actor.logger.Sugar().Infof("max_import_power not defined. assuming max rated power of inverter = %d", msg.Inverter.MaxRatedPowerWatt)
@@ -125,6 +134,12 @@ func (state BCWaitingInfoState) Receive(ctx actor.Context) {
 			state.actor.Become(BCIdleState{
 				actor: state.actor,
 			}.OnEnter(ctx))
+		} else if msg.ACMeter == nil && msg.Inverter != nil {
+			state.actor.logger.Debug("battery_control@waitingInfo: acMeter temporarily unavailable")
+			state.actor.scheduler.RequestOnce(30*time.Second, ctx.Self(), checkAcMeterTick{})
+			state.actor.Become(BCWaitingACMeterState{
+				actor: state.actor,
+			})
 		} else {
 			state.actor.Become(BCDoneState{
 				actor: state.actor,
@@ -134,6 +149,48 @@ func (state BCWaitingInfoState) Receive(ctx actor.Context) {
 	default:
 		state.actor.logger.Debug("battery_control@waitingInfo: stash", zap.String("type", fmt.Sprintf("%T", msg)))
 		state.actor.stash.Stash(ctx, msg)
+	}
+}
+
+// Waiting for acMeter state
+type BCWaitingACMeterState struct {
+	actorutil.ActorState
+	actor *BatteryControlActor
+}
+
+func (state BCWaitingACMeterState) Name() string {
+	return "waitingACMeter"
+}
+
+func (state BCWaitingACMeterState) Receive(ctx actor.Context) {
+	switch msg := ctx.Message().(type) {
+	case domain.ActorHealthRequest:
+		state.actor.logger.Debug("battery_control@waitingACMeter: ActorHealthRequest")
+		ctx.Respond(domain.ActorHealthResponse{
+			Id:      domain.ACTOR_ID_BATTERY_CONTROL,
+			Healthy: true,
+			State:   state.Name(),
+		})
+	case checkAcMeterTick:
+		state.actor.logger.Debug("battery_control@waitingACMeter: check if acMeter is available")
+		actorutil.PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.actor.modbusActor, domain.GetDevicesInfoRequest{}, state.actor.readTimeout), func(err error) any {
+			return domain.GetDevicesInfoResponse{
+				ActorResponseMixIn: domain.ActorResponseMixIn{
+					ResponseError: err,
+				},
+			}
+		})
+	case domain.GetDevicesInfoResponse:
+		if !msg.HasResponseError() && msg.Inverter != nil && msg.ACMeter != nil {
+			state.actor.logger.Debug("battery_control@waitingACMeter: recovered acMeter. Proceeding to idle state.")
+			state.actor.Become(BCWaitingInfoState{
+				actor: state.actor,
+			})
+		} else {
+			state.actor.scheduler.RequestOnce(30*time.Second, ctx.Self(), checkAcMeterTick{})
+		}
+
+	default:
 	}
 }
 
