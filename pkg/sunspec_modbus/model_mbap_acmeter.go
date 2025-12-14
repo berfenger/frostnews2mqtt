@@ -26,6 +26,7 @@ type ACMeterPowerFlow struct {
 
 type ACMeterModbusReader interface {
 	Open() error
+	IsOpen() bool
 	Close() error
 	Validate() error
 	GetInfo() (*ACMeterInfo, error)

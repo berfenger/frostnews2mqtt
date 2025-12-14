@@ -1,7 +1,7 @@
 package sunspec_modbus
 
 func CreateTestACMeterModbusReader() (ACMeterModbusReader, error) {
-	return TestACMeterModbusReader{}, nil
+	return &TestACMeterModbusReader{}, nil
 }
 
 func CreateTestInverterModbusReader() (InverterModbusReader, error) {
@@ -13,10 +13,17 @@ func CreateTestInverterModbusReader() (InverterModbusReader, error) {
 
 // ACMeter
 
-type TestACMeterModbusReader struct{}
+type TestACMeterModbusReader struct {
+	isOpen bool
+}
 
-func (reader TestACMeterModbusReader) Open() error {
+func (reader *TestACMeterModbusReader) Open() error {
+	reader.isOpen = true
 	return nil
+}
+
+func (reader TestACMeterModbusReader) IsOpen() bool {
+	return reader.isOpen
 }
 
 func (reader TestACMeterModbusReader) Close() error {
@@ -56,10 +63,16 @@ func (reader TestACMeterModbusReader) GetPowerFlow() (*ACMeterPowerFlow, error) 
 
 type TestInverterModbusReader struct {
 	batteryChargePower int
+	open               bool
 }
 
-func (inv TestInverterModbusReader) Open() error {
+func (inv *TestInverterModbusReader) Open() error {
+	inv.open = true
 	return nil
+}
+
+func (inv TestInverterModbusReader) IsOpen() bool {
+	return inv.open
 }
 
 func (inv TestInverterModbusReader) Close() error {
@@ -76,6 +89,7 @@ func (inv TestInverterModbusReader) GetInfo() (*InverterInfo, error) {
 		Model:             "Primo GEN24 4.0",
 		Version:           "1.30.7-1",
 		MaxRatedPowerWatt: 4000,
+		HasStorage:        true,
 	}, nil
 }
 func (inv TestInverterModbusReader) GetState() (*InverterState, error) {

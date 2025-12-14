@@ -6,9 +6,9 @@ import (
 	"time"
 
 	adactor "github.com/berfenger/frostnews2mqtt/internal/adapter/actor"
-	"github.com/berfenger/frostnews2mqtt/internal/config"
 	"github.com/berfenger/frostnews2mqtt/internal/core/domain"
 	"github.com/berfenger/frostnews2mqtt/internal/core/service"
+	"github.com/berfenger/frostnews2mqtt/internal/util"
 	"github.com/berfenger/frostnews2mqtt/internal/util/actorutil"
 	"github.com/berfenger/frostnews2mqtt/pkg/sunspec_modbus"
 
@@ -25,14 +25,15 @@ func TestBatteryControlFlow(t *testing.T) {
 
 	context := as.Root
 
-	cfg := config.Config{}
+	cfg := util.LoadTestConfig()
 	cfg.GridConfig.MaxImportPower = 4000
 	cfg.BatteryControlConfig.ControlIntervalMillis = 10000
+	cfg.InverterModbusTcp.ReadTimeoutMillis = 5000
 
 	// modbus actor
 	modbusProps := actor.PropsFromProducer(func() actor.Actor {
 		return adactor.NewModbusActor(2*time.Second, 2*time.Second, &sunspec_modbus.TestInverterModbusReader{},
-			sunspec_modbus.TestACMeterModbusReader{}, logger)
+			&sunspec_modbus.TestACMeterModbusReader{}, logger)
 	})
 	modbusActorPID := context.Spawn(modbusProps)
 
