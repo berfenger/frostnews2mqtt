@@ -3,14 +3,14 @@ package actor
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"time"
-
-	"github.com/berfenger/frostnews2mqtt/internal/core/domain"
-	"github.com/berfenger/frostnews2mqtt/internal/util/actorutil"
-	"github.com/berfenger/frostnews2mqtt/pkg/sunspec_modbus"
 
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/asynkron/protoactor-go/scheduler"
+	"github.com/berfenger/frostnews2mqtt/internal/core/domain"
+	"github.com/berfenger/frostnews2mqtt/internal/util/actorutil"
+	"github.com/berfenger/frostnews2mqtt/pkg/sunspec_modbus"
 	"github.com/reugn/go-quartz/logger"
 	"go.uber.org/zap"
 )
@@ -26,6 +26,7 @@ type ModbusActor struct {
 	inverter            sunspec_modbus.InverterModbusReader
 	acMeter             sunspec_modbus.ACMeterModbusReader
 	logger              *zap.Logger
+	readTimeout         time.Duration
 	readTimeoutAfterSet time.Duration
 }
 
@@ -34,13 +35,14 @@ type backgroundTaskResult struct {
 	replyTo *actor.PID
 }
 
-func NewModbusActor(readTimeoutAfterSet time.Duration, inverter sunspec_modbus.InverterModbusReader, acMeter sunspec_modbus.ACMeterModbusReader, logger *zap.Logger) *ModbusActor {
+func NewModbusActor(readTimeout time.Duration, readTimeoutAfterSet time.Duration, inverter sunspec_modbus.InverterModbusReader, acMeter sunspec_modbus.ACMeterModbusReader, logger *zap.Logger) *ModbusActor {
 	act := &ModbusActor{
 		inverter:            inverter,
 		acMeter:             acMeter,
 		behavior:            actor.NewBehavior(),
 		stash:               &actorutil.Stash{},
 		logger:              actorutil.ActorLogger(domain.ACTOR_ID_MODBUS, logger),
+		readTimeout:         readTimeout,
 		readTimeoutAfterSet: readTimeoutAfterSet,
 	}
 	act.behavior.Become(act.StartingReceive)
@@ -104,8 +106,8 @@ func (state *ModbusActor) DefaultReceive(ctx actor.Context) {
 				},
 				replyTo: sender,
 			}
-		}).WithTimeout(2 * time.Second).PipeTo(ctx.Self())
-		state.behavior.BecomeStacked(state.WaitingModbus)
+		}).WithTimeout(state.readTimeout).PipeTo(ctx.Self())
+		state.behavior.BecomeStacked(NewWaitingModbusActor(state, reflect.TypeOf(msg)).WaitingModbus)
 	case domain.GetPowerFlowRequest:
 		state.logger.Debug("modbus@default: GetPowerFlowRequest")
 		sender := actorutil.ForRequest(msg).ReplyTo(ctx)
@@ -119,8 +121,8 @@ func (state *ModbusActor) DefaultReceive(ctx actor.Context) {
 				},
 				replyTo: sender,
 			}
-		}).WithTimeout(2 * time.Second).PipeTo(ctx.Self())
-		state.behavior.BecomeStacked(state.WaitingModbus)
+		}).WithTimeout(state.readTimeout).PipeTo(ctx.Self())
+		state.behavior.BecomeStacked(NewWaitingModbusActor(state, reflect.TypeOf(msg)).WaitingModbus)
 	case domain.GetInverterStateRequest:
 		state.logger.Debug("modbus@default: GetInverterStateRequest")
 		sender := actorutil.ForRequest(msg).ReplyTo(ctx)
@@ -134,8 +136,8 @@ func (state *ModbusActor) DefaultReceive(ctx actor.Context) {
 				},
 				replyTo: sender,
 			}
-		}).WithTimeout(2 * time.Second).PipeTo(ctx.Self())
-		state.behavior.BecomeStacked(state.WaitingModbus)
+		}).WithTimeout(state.readTimeout).PipeTo(ctx.Self())
+		state.behavior.BecomeStacked(NewWaitingModbusActor(state, reflect.TypeOf(msg)).WaitingModbus)
 	case domain.GetStorageStateRequest:
 		state.logger.Debug("modbus@default: GetStorageStateRequest")
 		sender := actorutil.ForRequest(msg).ReplyTo(ctx)
@@ -149,8 +151,8 @@ func (state *ModbusActor) DefaultReceive(ctx actor.Context) {
 				},
 				replyTo: sender,
 			}
-		}).WithTimeout(2 * time.Second).PipeTo(ctx.Self())
-		state.behavior.BecomeStacked(state.WaitingModbus)
+		}).WithTimeout(state.readTimeout).PipeTo(ctx.Self())
+		state.behavior.BecomeStacked(NewWaitingModbusActor(state, reflect.TypeOf(msg)).WaitingModbus)
 	case domain.GetStorageControlPowerFlowRequest:
 		state.logger.Debug("modbus@default: GetStorageControlPowerFlowRequest")
 		sender := actorutil.ForRequest(msg).ReplyTo(ctx)
@@ -164,8 +166,8 @@ func (state *ModbusActor) DefaultReceive(ctx actor.Context) {
 				},
 				replyTo: sender,
 			}
-		}).WithTimeout(2 * time.Second).PipeTo(ctx.Self())
-		state.behavior.BecomeStacked(state.WaitingModbus)
+		}).WithTimeout(state.readTimeout).PipeTo(ctx.Self())
+		state.behavior.BecomeStacked(NewWaitingModbusActor(state, reflect.TypeOf(msg)).WaitingModbus)
 	case domain.SetStorageControlRequest:
 		state.logger.Debug("modbus@default: SetStorageControlRequest")
 		sender := actorutil.ForRequest(msg).ReplyTo(ctx)
@@ -191,6 +193,51 @@ func (state *ModbusActor) DefaultReceive(ctx actor.Context) {
 		state.acMeter.Close()
 	default:
 		state.logger.Debug("modbus@default default recv", zap.String("type", fmt.Sprintf("%T", msg)))
+	}
+}
+
+type waitingModbusActor struct {
+	state           *ModbusActor
+	requestType     reflect.Type
+	otherRequesters []*actor.PID
+}
+
+func NewWaitingModbusActor(state *ModbusActor, requestType reflect.Type) *waitingModbusActor {
+	return &waitingModbusActor{
+		state:           state,
+		requestType:     requestType,
+		otherRequesters: []*actor.PID{},
+	}
+}
+
+func (waitingState *waitingModbusActor) WaitingModbus(ctx actor.Context) {
+	switch msg := ctx.Message().(type) {
+	case backgroundTaskResult:
+		waitingState.state.logger.Debug("modbus@WaitingModbus backgroundTaskResult", zap.String("type", fmt.Sprintf("%T", msg.message)))
+		switch msg.message.(type) {
+		default:
+			ctx.Send(msg.replyTo, msg.message)
+			for _, pid := range waitingState.otherRequesters {
+				ctx.Send(pid, msg.message)
+			}
+			waitingState.state.behavior.UnbecomeStacked()
+			waitingState.state.stash.UnstashAll(ctx)
+		}
+	case *actor.Stopping:
+		//nolint errcheck
+		waitingState.state.inverter.Close()
+		//nolint errcheck
+		waitingState.state.acMeter.Close()
+	default:
+		if reflect.TypeOf(msg) == waitingState.requestType {
+			sender := ctx.Sender()
+			waitingState.otherRequesters = append(waitingState.otherRequesters, sender)
+			return
+		} else {
+			// different message, process later
+			waitingState.state.logger.Debug("modbus@WaitingModbus stash", zap.String("type", fmt.Sprintf("%T", msg)))
+			waitingState.state.stash.Stash(ctx, msg)
+		}
 	}
 }
 

@@ -25,6 +25,7 @@ type PowerFlowActor struct {
 	hasStorage        bool
 	currentStateCount uint
 	stateCount        uint
+	readTimeout       time.Duration
 
 	logger *zap.Logger
 }
@@ -43,6 +44,7 @@ func NewPowerFlowActor(config *config.Config, modbusActor *actor.PID, mqttActor 
 		hasStorage:        false,
 		currentStateCount: 2,
 		stateCount:        2,
+		readTimeout:       time.Duration(config.InverterModbusTcp.ReadTimeoutMillis) * time.Millisecond,
 	}
 	act.behavior.Become(act.StartingReceive)
 	return act
@@ -62,7 +64,7 @@ func (state *PowerFlowActor) StartingReceive(ctx actor.Context) {
 			state.scheduler.RequestOnce(time.Duration(state.config.MonitorConfig.PollIntervalMillis)*time.Millisecond, ctx.Self(), powerFlowTick{})
 		}
 
-		actorutil.PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.modbusActor, domain.GetDevicesInfoRequest{}, 1*time.Second), func(err error) any {
+		actorutil.PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.modbusActor, domain.GetDevicesInfoRequest{}, state.readTimeout), func(err error) any {
 			return domain.GetDevicesInfoResponse{
 				ActorResponseMixIn: domain.ActorResponseMixIn{
 					ResponseError: err,
@@ -89,7 +91,7 @@ func (state *PowerFlowActor) DefaultReceive(ctx actor.Context) {
 	case powerFlowTick:
 		state.logger.Debug("powerflow@default tick")
 		// get power flow
-		actorutil.PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.modbusActor, domain.GetPowerFlowRequest{}, 1*time.Second), func(err error) any {
+		actorutil.PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.modbusActor, domain.GetPowerFlowRequest{}, state.readTimeout), func(err error) any {
 			return domain.GetPowerFlowResponse{
 				ActorResponseMixIn: domain.ActorResponseMixIn{
 					ResponseError: err,
@@ -99,7 +101,7 @@ func (state *PowerFlowActor) DefaultReceive(ctx actor.Context) {
 		// get Inverter/Storage states
 		if state.currentStateCount == state.stateCount {
 			state.currentStateCount = 0
-			actorutil.PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.modbusActor, domain.GetInverterStateRequest{}, 1*time.Second), func(err error) any {
+			actorutil.PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.modbusActor, domain.GetInverterStateRequest{}, state.readTimeout), func(err error) any {
 				return domain.GetInverterStateResponse{
 					ActorResponseMixIn: domain.ActorResponseMixIn{
 						ResponseError: err,
@@ -107,7 +109,7 @@ func (state *PowerFlowActor) DefaultReceive(ctx actor.Context) {
 				}
 			})
 			if state.hasStorage {
-				actorutil.PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.modbusActor, domain.GetStorageStateRequest{}, 1*time.Second), func(err error) any {
+				actorutil.PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.modbusActor, domain.GetStorageStateRequest{}, state.readTimeout), func(err error) any {
 					return domain.GetStorageStateResponse{
 						ActorResponseMixIn: domain.ActorResponseMixIn{
 							ResponseError: err,
@@ -156,7 +158,7 @@ func (state *PowerFlowActor) WaitingPFReceive(ctx actor.Context) {
 		state.logger.Debug("powerflow@waiting GetPowerFlowResponse")
 		// Inverter power flow
 		if msg.Inverter != nil {
-			evs := events.InverterPowerFlowToUpdateEvents(msg.Inverter)
+			evs := events.InverterPowerFlowToUpdateEvents(msg.Inverter, state.hasStorage)
 			for _, ev := range evs {
 				state.sendEventToMQTT(ctx, ev)
 			}

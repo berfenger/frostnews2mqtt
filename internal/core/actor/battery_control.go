@@ -24,6 +24,7 @@ type BatteryControlActor struct {
 	modbusActor        *actor.PID
 	mqttActor          *actor.PID
 	config             *config.Config
+	readTimeout        time.Duration
 	targetSOC          uint8
 	control            port.BatteryChargeControlLogic
 	tickIntervalMillis uint32
@@ -43,6 +44,7 @@ func NewBatteryControlActor(config *config.Config, modbusActor *actor.PID, mqttA
 		control:            control,
 		tickIntervalMillis: config.BatteryControlConfig.ControlIntervalMillis,
 		targetSOC:          100,
+		readTimeout:        time.Duration(config.InverterModbusTcp.ReadTimeoutMillis) * time.Millisecond,
 		ActorWithStates: actorutil.ActorWithStates{
 			Behavior: actor.NewBehavior(),
 		},
@@ -75,7 +77,10 @@ func (state BCStartingState) Receive(ctx actor.Context) {
 
 		state.actor.scheduler = scheduler.NewTimerScheduler(ctx)
 
-		actorutil.PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.actor.modbusActor, domain.GetDevicesInfoRequest{}, 1*time.Second), func(err error) any {
+		actorutil.PipeToSelfWithRecover(
+			ctx,
+			ctx.RequestFuture(state.actor.modbusActor, domain.GetDevicesInfoRequest{}, state.actor.readTimeout),
+			func(err error) any {
 			return domain.GetDevicesInfoResponse{
 				ActorResponseMixIn: domain.ActorResponseMixIn{
 					ResponseError: err,

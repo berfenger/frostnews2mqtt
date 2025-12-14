@@ -35,7 +35,7 @@ func TestGetDevicesInfoModbusActor(t *testing.T) {
 
 	context := as.Root
 
-	props := actor.PropsFromProducer(func() actor.Actor { return NewModbusActor(2*time.Second, inv, acMeter, logger) })
+	props := actor.PropsFromProducer(func() actor.Actor { return NewModbusActor(2*time.Second, 2*time.Second, inv, acMeter, logger) })
 	pid := context.Spawn(props)
 
 	time.Sleep(1 * time.Second)
@@ -81,7 +81,7 @@ func TestGetPowerFlowModbusActor(t *testing.T) {
 	as := actorutil.NewActorSystemWithZapLogger(logger)
 	context := as.Root
 
-	props := actor.PropsFromProducer(func() actor.Actor { return NewModbusActor(2*time.Second, inv, acMeter, logger) })
+	props := actor.PropsFromProducer(func() actor.Actor { return NewModbusActor(2*time.Second, 2*time.Second, inv, acMeter, logger) })
 	pid := context.Spawn(props)
 
 	time.Sleep(1 * time.Second)
@@ -126,7 +126,7 @@ func TestReadTimeoutOnSetParamsModbusActor(t *testing.T) {
 	as := actorutil.NewActorSystemWithZapLogger(logger)
 	context := as.Root
 
-	props := actor.PropsFromProducer(func() actor.Actor { return NewModbusActor(2*time.Second, inv, acMeter, logger) })
+	props := actor.PropsFromProducer(func() actor.Actor { return NewModbusActor(2*time.Second, 2*time.Second, inv, acMeter, logger) })
 	pid := context.Spawn(props)
 
 	time.Sleep(1 * time.Second)

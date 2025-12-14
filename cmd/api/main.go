@@ -209,7 +209,10 @@ func modbusActorProvider(cfg *config.Config, logger *zap.Logger) (actor.ModbusAc
 	}
 
 	return func() *adactor.ModbusActor {
-		return adactor.NewModbusActor(time.Duration(cfg.InverterModbusTcp.ReadDelayAfterChangeMillis)*time.Millisecond, inv, acMeter, logger)
+		return adactor.NewModbusActor(
+			time.Duration(cfg.InverterModbusTcp.ReadTimeoutMillis)*time.Millisecond,
+			time.Duration(cfg.InverterModbusTcp.ReadDelayAfterChangeMillis)*time.Millisecond,
+			inv, acMeter, logger)
 	}, nil
 }
 
@@ -231,6 +234,7 @@ func setConfigDefaults() {
 	viper.SetDefault("battery_control.start_power_threshold", 500)
 	viper.SetDefault("battery_control.max_rate_power_increase", 800)
 	viper.SetDefault("battery_control.safety_margin_power", 200)
+	viper.SetDefault("inverter_modbus_tcp.read_timeout_millis", 2000)
 	viper.SetDefault("inverter_modbus_tcp.read_delay_after_change_millis", 2000)
 	viper.SetDefault("port", 8080)
 }

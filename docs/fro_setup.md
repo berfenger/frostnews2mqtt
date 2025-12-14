@@ -19,10 +19,11 @@ Reference config file for the above images:
 inverter_modbus_tcp:
   host: 192.168.4.1 # put your real inverter IP address
   port: 502
+  inverter_id: 0
   meter_id: 200
 ```
 
-## Fronius SnapINverter
+## Fronius SnapINverters
 
 - Select `tcp` on `Data export via Modbus`
 - Enable `Inverter control via Modbus`
@@ -36,6 +37,7 @@ Reference config file for the above image:
 inverter_modbus_tcp:
   host: 192.168.4.1 # put your real inverter IP address
   port: 502
+  inverter_id: 1
   meter_id: 240
 ```
 
