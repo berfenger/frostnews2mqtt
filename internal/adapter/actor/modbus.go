@@ -214,15 +214,12 @@ func (waitingState *waitingModbusActor) WaitingModbus(ctx actor.Context) {
 	switch msg := ctx.Message().(type) {
 	case backgroundTaskResult:
 		waitingState.state.logger.Debug("modbus@WaitingModbus backgroundTaskResult", zap.String("type", fmt.Sprintf("%T", msg.message)))
-		switch msg.message.(type) {
-		default:
-			ctx.Send(msg.replyTo, msg.message)
-			for _, pid := range waitingState.otherRequesters {
-				ctx.Send(pid, msg.message)
-			}
-			waitingState.state.behavior.UnbecomeStacked()
-			waitingState.state.stash.UnstashAll(ctx)
+		ctx.Send(msg.replyTo, msg.message)
+		for _, pid := range waitingState.otherRequesters {
+			ctx.Send(pid, msg.message)
 		}
+		waitingState.state.behavior.UnbecomeStacked()
+		waitingState.state.stash.UnstashAll(ctx)
 	case *actor.Stopping:
 		//nolint errcheck
 		waitingState.state.inverter.Close()
