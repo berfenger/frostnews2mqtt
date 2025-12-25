@@ -185,6 +185,7 @@ func (state BCWaitingACMeterState) Receive(ctx actor.Context) {
 	case domain.GetDevicesInfoResponse:
 		if !msg.HasResponseError() && msg.Inverter != nil && msg.ACMeter != nil {
 			state.actor.logger.Debug("battery_control@waitingACMeter: recovered acMeter. Proceeding to idle state.")
+			ctx.Send(ctx.Self(), msg)
 			state.actor.Become(BCWaitingInfoState{
 				actor: state.actor,
 			})
@@ -296,6 +297,9 @@ func (state BCChargingState) Receive(ctx actor.Context) {
 		}.OnEnterAction(ctx))
 	case domain.SetStorageControlResponse:
 		ctx.SetReceiveTimeout(0)
+		if state.cancelTick != nil {
+			state.cancelTick()
+		}
 		if msg.HasResponseError() {
 			state.actor.logger.Error("battery_control@charging SetStorageControlResponse error", zap.Error(msg.GetResponseError()))
 			panic(msg.GetResponseError())
@@ -435,6 +439,9 @@ func (state BCHoldingState) Receive(ctx actor.Context) {
 		state.sendStorageControl(ctx)
 	case domain.SetStorageControlResponse:
 		ctx.SetReceiveTimeout(0)
+		if state.cancelTick != nil {
+			state.cancelTick()
+		}
 		if msg.HasResponseError() {
 			state.actor.logger.Error("battery_control@holding SetStorageControlResponse error", zap.Error(msg.GetResponseError()))
 			panic(msg.GetResponseError())
@@ -605,6 +612,7 @@ func (state BCAwaitPowerFlowResponseState) Receive(ctx actor.Context) {
 		state.actor.stash.UnstashAll(ctx)
 	case *actor.ReceiveTimeout:
 		state.actor.logger.Debug("battery_control@awaitPowerFlowReceive: ReceiveTimeout")
+		ctx.SetReceiveTimeout(0)
 		ctx.RequestWithCustomSender(ctx.Self(), domain.GetStorageControlPowerFlowResponse{
 			ActorResponseMixIn: domain.ActorResponseMixIn{
 				ResponseError: errors.New("receive timeout"),
