@@ -19,16 +19,17 @@ import (
 
 type BatteryControlActor struct {
 	actorutil.ActorWithStates
-	scheduler          *scheduler.TimerScheduler
-	stash              *actorutil.Stash
-	modbusActor        *actor.PID
-	mqttActor          *actor.PID
-	config             *config.Config
-	readTimeout        time.Duration
-	targetSOC          uint8
-	control            port.BatteryChargeControlLogic
-	tickIntervalMillis uint32
-	logger             *zap.Logger
+	scheduler           *scheduler.TimerScheduler
+	stash               *actorutil.Stash
+	modbusActor         *actor.PID
+	mqttActor           *actor.PID
+	config              *config.Config
+	readTimeout         time.Duration
+	readAfterSetTimeout time.Duration
+	targetSOC           uint8
+	control             port.BatteryChargeControlLogic
+	tickIntervalMillis  uint32
+	logger              *zap.Logger
 }
 
 type batteryControlTick struct {
@@ -39,15 +40,16 @@ type checkAcMeterTick struct {
 
 func NewBatteryControlActor(config *config.Config, modbusActor *actor.PID, mqttActor *actor.PID, control port.BatteryChargeControlLogic, logger *zap.Logger) *BatteryControlActor {
 	act := &BatteryControlActor{
-		config:             config,
-		modbusActor:        modbusActor,
-		mqttActor:          mqttActor,
-		stash:              &actorutil.Stash{},
-		logger:             actorutil.ActorLogger(domain.ACTOR_ID_BATTERY_CONTROL, logger),
-		control:            control,
-		tickIntervalMillis: config.BatteryControlConfig.ControlIntervalMillis,
-		targetSOC:          100,
-		readTimeout:        time.Duration(config.InverterModbusTcp.ReadTimeoutMillis) * time.Millisecond,
+		config:              config,
+		modbusActor:         modbusActor,
+		mqttActor:           mqttActor,
+		stash:               &actorutil.Stash{},
+		logger:              actorutil.ActorLogger(domain.ACTOR_ID_BATTERY_CONTROL, logger),
+		control:             control,
+		tickIntervalMillis:  config.BatteryControlConfig.ControlIntervalMillis,
+		targetSOC:           100,
+		readTimeout:         time.Duration(config.InverterModbusTcp.ReadTimeoutMillis) * time.Millisecond,
+		readAfterSetTimeout: time.Duration(config.InverterModbusTcp.ReadTimeoutMillis+config.InverterModbusTcp.ReadDelayAfterChangeMillis) * time.Millisecond,
 		ActorWithStates: actorutil.ActorWithStates{
 			Behavior: actor.NewBehavior(),
 		},
@@ -618,7 +620,7 @@ func (state BCAwaitPowerFlowResponseState) Receive(ctx actor.Context) {
 
 func (state BCAwaitPowerFlowResponseState) OnEnterAction(ctx actor.Context) BCAwaitPowerFlowResponseState {
 	actorutil.PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.actor.modbusActor,
-		domain.GetStorageControlPowerFlowRequest{}, 2*time.Second),
+		domain.GetStorageControlPowerFlowRequest{}, state.actor.readAfterSetTimeout),
 		func(err error) any {
 			return domain.GetStorageControlPowerFlowResponse{
 				ActorResponseMixIn: domain.ActorResponseMixIn{
@@ -626,7 +628,7 @@ func (state BCAwaitPowerFlowResponseState) OnEnterAction(ctx actor.Context) BCAw
 				},
 			}
 		})
-	ctx.SetReceiveTimeout(2 * time.Second)
+	ctx.SetReceiveTimeout(state.actor.readAfterSetTimeout)
 	return state
 }
 
