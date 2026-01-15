@@ -1,7 +1,5 @@
 package domain
 
-import "github.com/berfenger/frostnews2mqtt/pkg/sunspec_modbus"
-
 const (
 	ACTOR_ID_MASTER          = "master"
 	ACTOR_ID_MODBUS          = "modbus"
@@ -17,8 +15,8 @@ type GetDevicesInfoRequest struct {
 
 type GetDevicesInfoResponse struct {
 	ActorResponseMixIn
-	Inverter *sunspec_modbus.InverterInfo
-	ACMeter  *sunspec_modbus.ACMeterInfo
+	Inverter *InverterInfo
+	ACMeter  *ACMeterInfo
 }
 
 type GetPowerFlowRequest struct {
@@ -27,8 +25,8 @@ type GetPowerFlowRequest struct {
 
 type GetPowerFlowResponse struct {
 	ActorResponseMixIn
-	Inverter *sunspec_modbus.InverterPowerFlow
-	ACMeter  *sunspec_modbus.ACMeterPowerFlow
+	Inverter *InverterPowerFlow
+	ACMeter  *ACMeterPowerFlow
 }
 
 type GetStorageStateRequest struct {
@@ -37,7 +35,7 @@ type GetStorageStateRequest struct {
 
 type GetStorageStateResponse struct {
 	ActorResponseMixIn
-	StorageState *sunspec_modbus.StorageState
+	StorageState *StorageState
 }
 
 type GetInverterStateRequest struct {
@@ -46,12 +44,13 @@ type GetInverterStateRequest struct {
 
 type GetInverterStateResponse struct {
 	ActorResponseMixIn
-	InverterState *sunspec_modbus.InverterState
+	InverterState       *InverterState
+	VendorInverterState *VendorInverterState
 }
 
 type SetStorageControlRequest struct {
 	ActorRequestMixIn
-	Params sunspec_modbus.StorageControlParams
+	Params StorageControlParams
 }
 
 type SetStorageControlResponse struct {
@@ -64,9 +63,9 @@ type GetStorageControlPowerFlowRequest struct {
 
 type GetStorageControlPowerFlowResponse struct {
 	ActorResponseMixIn
-	StorageState      *sunspec_modbus.StorageState
-	ACMeterPowerFlow  *sunspec_modbus.ACMeterPowerFlow
-	InverterPowerFlow *sunspec_modbus.InverterPowerFlow
+	StorageState      *StorageState
+	ACMeterPowerFlow  *ACMeterPowerFlow
+	InverterPowerFlow *InverterPowerFlow
 }
 
 type PublishMessageRequest struct {

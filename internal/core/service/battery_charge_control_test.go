@@ -7,7 +7,6 @@ import (
 
 	"github.com/berfenger/frostnews2mqtt/internal/core/domain"
 	"github.com/berfenger/frostnews2mqtt/internal/core/port"
-	"github.com/berfenger/frostnews2mqtt/pkg/sunspec_modbus"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -133,7 +132,7 @@ func runDecrements(require *require.Assertions, ctrl port.BatteryChargeControlLo
 // Generic function to check if the calculated power values meet the power constraints
 // Does not check the rate of power increase/decrease or other behaviour that depends on controller implementation
 func callControllerAndCheckPower(require *require.Assertions, ctrl port.BatteryChargeControlLogic,
-	ss *sunspec_modbus.StorageState, pf PFPair, prevPowerValue int32, targetSoC uint8) domain.BatteryChargeControlTickResult {
+	ss *domain.StorageState, pf PFPair, prevPowerValue int32, targetSoC uint8) domain.BatteryChargeControlTickResult {
 
 	acpf := pf.A
 	ipf := pf.B
@@ -166,14 +165,14 @@ func callControllerAndCheckPower(require *require.Assertions, ctrl port.BatteryC
 	return r
 }
 
-func genStorageState(soc float64, maxCapacity uint32) *sunspec_modbus.StorageState {
-	return &sunspec_modbus.StorageState{
+func genStorageState(soc float64, maxCapacity uint32) *domain.StorageState {
+	return &domain.StorageState{
 		StateOfCharge:   soc,
 		MaxCapacityWatt: maxCapacity,
 	}
 }
 
-func genACMeterPF(currentPFWatt float64) *sunspec_modbus.ACMeterPowerFlow {
+func genACMeterPF(currentPFWatt float64) *domain.ACMeterPowerFlow {
 	_import := 0.0
 	_export := 0.0
 	if currentPFWatt > 0 {
@@ -182,14 +181,14 @@ func genACMeterPF(currentPFWatt float64) *sunspec_modbus.ACMeterPowerFlow {
 		_export += math.Abs(currentPFWatt)
 	}
 
-	return &sunspec_modbus.ACMeterPowerFlow{
+	return &domain.ACMeterPowerFlow{
 		CurrentPowerFlowWatt:   currentPFWatt,
 		CurrentImportPowerWatt: _import,
 		CurrentExportPowerWatt: _export,
 	}
 }
 
-func genInverterPF(batteryPF, pvPower float64) *sunspec_modbus.InverterPowerFlow {
+func genInverterPF(batteryPF, pvPower float64) *domain.InverterPowerFlow {
 	bcharge := 0.0
 	bdischarge := 0.0
 	if batteryPF > 0 {
@@ -197,7 +196,7 @@ func genInverterPF(batteryPF, pvPower float64) *sunspec_modbus.InverterPowerFlow
 	} else {
 		bcharge = math.Abs(batteryPF)
 	}
-	return &sunspec_modbus.InverterPowerFlow{
+	return &domain.InverterPowerFlow{
 		ACPowerWatt:               pvPower + batteryPF,
 		PVPowerWatt:               pvPower,
 		BatteryDCPowerFlowWatt:    batteryPF,
@@ -211,7 +210,7 @@ type Pair[A, B any] struct {
 	B B
 }
 
-type PFPair = Pair[*sunspec_modbus.ACMeterPowerFlow, *sunspec_modbus.InverterPowerFlow]
+type PFPair = Pair[*domain.ACMeterPowerFlow, *domain.InverterPowerFlow]
 
 func genDepententPF(pvPower, housePower, batteryFlow float64) PFPair {
 	invPF := ipf(batteryFlow, pvPower)

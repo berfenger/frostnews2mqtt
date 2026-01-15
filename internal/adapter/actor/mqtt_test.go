@@ -1,12 +1,15 @@
 package actor
 
 import (
+	"context"
 	"testing"
 	"time"
 
+	"github.com/berfenger/frostnews2mqtt/internal/core/component"
 	"github.com/berfenger/frostnews2mqtt/internal/core/domain"
 	"github.com/berfenger/frostnews2mqtt/internal/util"
 	"github.com/berfenger/frostnews2mqtt/internal/util/actorutil"
+	"github.com/berfenger/frostnews2mqtt/pkg/util/logutil"
 
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/stretchr/testify/assert"
@@ -18,8 +21,10 @@ func TestMQTTActor(t *testing.T) {
 	cfg := util.LoadTestConfig()
 
 	logger := zap.Must(zap.NewDevelopment())
+	ctx := context.Background()
+	ctx = logutil.WithLogger(ctx, logger)
 
-	as := actorutil.NewActorSystemWithZapLogger(logger)
+	as := actorutil.NewActorSystem(ctx)
 
 	context := as.Root
 
@@ -41,7 +46,7 @@ func TestMQTTActor(t *testing.T) {
 	context.Send(pid, domain.PublishSensorUpdateRequest{
 		Event: domain.FloatSensorUpdateEvent{
 			SensorUpdateEventMixIn: domain.SensorUpdateEventMixIn{
-				Id: domain.SENSOR_ID_INVERTER_AC_POWER_FLOW,
+				Id: component.SENSOR_ID_INVERTER_AC_POWER_FLOW,
 			},
 			Value: 245,
 		},
@@ -50,7 +55,7 @@ func TestMQTTActor(t *testing.T) {
 	context.Send(pid, domain.PublishSensorUpdateRequest{
 		Event: domain.FloatSensorUpdateEvent{
 			SensorUpdateEventMixIn: domain.SensorUpdateEventMixIn{
-				Id: domain.SENSOR_ID_INVERTER_PV_POWER,
+				Id: component.SENSOR_ID_INVERTER_PV_POWER,
 			},
 			Value: 345.32,
 		},

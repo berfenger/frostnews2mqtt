@@ -1,12 +1,14 @@
 package actor
 
 import (
+	"context"
 	"testing"
 	"time"
 
+	"github.com/berfenger/frostnews2mqtt/internal/adapter/device"
 	"github.com/berfenger/frostnews2mqtt/internal/core/domain"
 	"github.com/berfenger/frostnews2mqtt/internal/util/actorutil"
-	"github.com/berfenger/frostnews2mqtt/pkg/sunspec_modbus"
+	"github.com/berfenger/frostnews2mqtt/pkg/util/logutil"
 
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/stretchr/testify/assert"
@@ -17,21 +19,23 @@ func TestGetDevicesInfoModbusActor(t *testing.T) {
 
 	assert := assert.New(t)
 
-	inv, err := sunspec_modbus.CreateTestInverterModbusReader()
+	inv, err := device.CreateTestInverterModbusReader()
 	if err != nil {
 		t.Error(err)
 		return
 	}
 
-	acMeter, err := sunspec_modbus.CreateTestACMeterModbusReader()
+	acMeter, err := device.CreateTestACMeterModbusReader()
 	if err != nil {
 		t.Error(err)
 		return
 	}
 
 	logger := zap.Must(zap.NewDevelopment())
+	ctx := context.Background()
+	ctx = logutil.WithLogger(ctx, logger)
 
-	as := actorutil.NewActorSystemWithZapLogger(logger)
+	as := actorutil.NewActorSystem(ctx)
 
 	context := as.Root
 
@@ -64,21 +68,23 @@ func TestGetPowerFlowModbusActor(t *testing.T) {
 
 	assert := assert.New(t)
 
-	inv, err := sunspec_modbus.CreateTestInverterModbusReader()
+	inv, err := device.CreateTestInverterModbusReader()
 	if err != nil {
 		t.Error(err)
 		return
 	}
 
-	acMeter, err := sunspec_modbus.CreateTestACMeterModbusReader()
+	acMeter, err := device.CreateTestACMeterModbusReader()
 	if err != nil {
 		t.Error(err)
 		return
 	}
 
 	logger := zap.Must(zap.NewDevelopment())
+	ctx := context.Background()
+	ctx = logutil.WithLogger(ctx, logger)
 
-	as := actorutil.NewActorSystemWithZapLogger(logger)
+	as := actorutil.NewActorSystem(ctx)
 	context := as.Root
 
 	props := actor.PropsFromProducer(func() actor.Actor { return NewModbusActor(2*time.Second, 2*time.Second, inv, acMeter, logger) })
@@ -109,21 +115,23 @@ func TestReadTimeoutOnSetParamsModbusActor(t *testing.T) {
 
 	assert := assert.New(t)
 
-	inv, err := sunspec_modbus.CreateTestInverterModbusReader()
+	inv, err := device.CreateTestInverterModbusReader()
 	if err != nil {
 		t.Error(err)
 		return
 	}
 
-	acMeter, err := sunspec_modbus.CreateTestACMeterModbusReader()
+	acMeter, err := device.CreateTestACMeterModbusReader()
 	if err != nil {
 		t.Error(err)
 		return
 	}
 
 	logger := zap.Must(zap.NewDevelopment())
+	ctx := context.Background()
+	ctx = logutil.WithLogger(ctx, logger)
 
-	as := actorutil.NewActorSystemWithZapLogger(logger)
+	as := actorutil.NewActorSystem(ctx)
 	context := as.Root
 
 	props := actor.PropsFromProducer(func() actor.Actor { return NewModbusActor(2*time.Second, 2*time.Second, inv, acMeter, logger) })
@@ -132,7 +140,7 @@ func TestReadTimeoutOnSetParamsModbusActor(t *testing.T) {
 	time.Sleep(1 * time.Second)
 
 	setMsg := domain.SetStorageControlRequest{
-		Params: sunspec_modbus.StorageControlParams{
+		Params: domain.StorageControlParams{
 			MinChargePowerWatt:    -1,
 			MaxChargePowerWatt:    -1,
 			MinDischargePowerWatt: -1,

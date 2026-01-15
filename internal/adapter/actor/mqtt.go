@@ -186,7 +186,7 @@ func (state *MQTTActor) event2MQTTMessage(event any) *rawMessage {
 	case domain.TextSensorUpdateEvent:
 		return &rawMessage{
 			topic:   state.client.SensorStateTopic(msg.Id),
-			message: msg.Value,
+			message: addAttributesIfNeeded(msg.Attributes, msg.Value),
 		}
 	case domain.BridgeStateUpdateEvent:
 		var stringMessage string
@@ -338,6 +338,27 @@ func bool2MQTTPayload(value bool) string {
 		return mqtt.MQTT_PAYLOAD_ON
 	} else {
 		return mqtt.MQTT_PAYLOAD_OFF
+	}
+}
+
+type valueWithAttributes struct {
+	Value      string         `json:"state"`
+	Attributes map[string]any `json:"attributes"`
+}
+
+func addAttributesIfNeeded(attributes map[string]any, value string) string {
+	if len(attributes) > 0 {
+		jsonByteString, err := json.Marshal(valueWithAttributes{
+			Value:      value,
+			Attributes: attributes,
+		})
+		if err != nil {
+			return value
+		} else {
+			return string(jsonByteString)
+		}
+	} else {
+		return value
 	}
 }
 
