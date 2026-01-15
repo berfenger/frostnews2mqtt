@@ -1,4 +1,4 @@
-package sunspec_modbus
+package modbus
 
 import (
 	"encoding/binary"
@@ -42,4 +42,8 @@ func bytesToUint16(endianness modbus.Endianness, in []byte) (out uint16) {
 	}
 
 	return
+}
+
+func bytesToUint32(endianness modbus.Endianness, wordOrder modbus.WordOrder, bytes []byte) uint32 {
+	return bytesToUint32s(endianness, wordOrder, bytes)[0]
 }
