@@ -3,30 +3,34 @@ package mqtt
 import (
 	"fmt"
 
+	"github.com/berfenger/frostnews2mqtt/internal/core/component"
 	"github.com/berfenger/frostnews2mqtt/internal/core/domain"
 )
 
 type HADiscoveryConfig struct {
-	Device            HADiscoveryDevice `json:"device"`
-	StateTopic        string            `json:"state_topic"`
-	CommandTopic      string            `json:"command_topic,omitempty"`
-	StateClass        string            `json:"state_class,omitempty"`
-	DeviceClass       string            `json:"device_class,omitempty"`
-	UnitOfMeasurement string            `json:"unit_of_measurement,omitempty"`
-	AvTopic           string            `json:"availability_topic,omitempty"`
-	EntityCategory    string            `json:"entity_category,omitempty"`
-	Name              string            `json:"name"`
-	UniqueId          string            `json:"unique_id"`
-	Platform          string            `json:"platform"`
-	EnabledByDefault  *bool             `json:"enabled_by_default,omitempty"`
-	PayloadOn         string            `json:"payload_on,omitempty"`
-	PayloadOff        string            `json:"payload_off,omitempty"`
-	Icon              string            `json:"icon,omitempty"`
-	Min               float64           `json:"min,omitempty"`
-	Max               float64           `json:"max,omitempty"`
-	Step              float64           `json:"step,omitempty"`
-	Mode              string            `json:"mode,omitempty"`
-	InitialValue      float64           `json:"initial,omitempty"`
+	Device                 HADiscoveryDevice `json:"device"`
+	StateTopic             string            `json:"state_topic"`
+	CommandTopic           string            `json:"command_topic,omitempty"`
+	StateClass             string            `json:"state_class,omitempty"`
+	DeviceClass            string            `json:"device_class,omitempty"`
+	UnitOfMeasurement      string            `json:"unit_of_measurement,omitempty"`
+	AvTopic                string            `json:"availability_topic,omitempty"`
+	EntityCategory         string            `json:"entity_category,omitempty"`
+	Name                   string            `json:"name"`
+	UniqueId               string            `json:"unique_id"`
+	Platform               string            `json:"platform"`
+	EnabledByDefault       *bool             `json:"enabled_by_default,omitempty"`
+	PayloadOn              string            `json:"payload_on,omitempty"`
+	PayloadOff             string            `json:"payload_off,omitempty"`
+	Icon                   string            `json:"icon,omitempty"`
+	Min                    float64           `json:"min,omitempty"`
+	Max                    float64           `json:"max,omitempty"`
+	Step                   float64           `json:"step,omitempty"`
+	Mode                   string            `json:"mode,omitempty"`
+	InitialValue           float64           `json:"initial,omitempty"`
+	ValueTemplate          string            `json:"value_template,omitempty"`
+	JsonAttributesTopic    string            `json:"json_attributes_topic,omitempty"`
+	JsonAttributesTemplate string            `json:"json_attributes_template,omitempty"`
 }
 
 type HADiscoveryDevice struct {
@@ -54,11 +58,11 @@ func GenericSensorToHADiscoveryMessage(client *MQTTClient, sensor domain.Generic
 	dev := device(sensor.Device)
 	var topic string
 	switch {
-	case sensor.Id == domain.SENSOR_ID_BRIDGE_STATE:
+	case sensor.Id == component.SENSOR_ID_BRIDGE_STATE:
 		topic = client.BridgeStateTopic()
-	case sensor.SensorType == domain.SENSOR_TYPE_SENSOR:
+	case sensor.SensorType == component.SENSOR_TYPE_SENSOR:
 		topic = client.SensorStateTopic(sensor.Id)
-	case sensor.SensorType == domain.SENSOR_TYPE_BINARY:
+	case sensor.SensorType == component.SENSOR_TYPE_BINARY:
 		topic = client.BinarySensorStateTopic(sensor.Id)
 	}
 	disConfig := HADiscoveryConfig{
@@ -76,12 +80,18 @@ func GenericSensorToHADiscoveryMessage(client *MQTTClient, sensor domain.Generic
 		Platform:          "mqtt",
 	}
 	switch sensor.Id {
-	case domain.SENSOR_ID_BRIDGE_STATE:
+	case component.SENSOR_ID_BRIDGE_STATE:
 		disConfig.PayloadOn = MQTT_PAYLOAD_ONLINE
 		disConfig.PayloadOff = MQTT_PAYLOAD_OFFLINE
-	case domain.SENSOR_TYPE_BINARY:
+	case component.SENSOR_TYPE_BINARY:
 		disConfig.PayloadOn = MQTT_PAYLOAD_ON
 		disConfig.PayloadOff = MQTT_PAYLOAD_OFF
+	}
+	// add attributes if needed
+	if sensor.HasAttributes {
+		disConfig.ValueTemplate = "{{ value_json.state }}"
+		disConfig.JsonAttributesTopic = topic
+		disConfig.JsonAttributesTemplate = "{{ value_json.attributes | tojson }}"
 	}
 	return disConfig
 }

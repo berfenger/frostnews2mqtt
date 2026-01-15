@@ -10,7 +10,6 @@ import (
 	"github.com/asynkron/protoactor-go/scheduler"
 	"github.com/berfenger/frostnews2mqtt/internal/core/domain"
 	"github.com/berfenger/frostnews2mqtt/internal/util/actorutil"
-	"github.com/berfenger/frostnews2mqtt/pkg/sunspec_modbus"
 	"github.com/reugn/go-quartz/logger"
 	"go.uber.org/zap"
 )
@@ -23,8 +22,10 @@ type ModbusActor struct {
 	behavior            actor.Behavior
 	stash               *actorutil.Stash
 	scheduler           *scheduler.TimerScheduler
-	inverter            sunspec_modbus.InverterModbusReader
-	acMeter             sunspec_modbus.ACMeterModbusReader
+	inverter            domain.InverterDevice
+	acMeter             domain.ACMeterModbusReader
+	inverterDeviceInfo  *domain.InverterInfo
+	acMeterDeviceInfo   *domain.ACMeterInfo
 	logger              *zap.Logger
 	readTimeout         time.Duration
 	readTimeoutAfterSet time.Duration
@@ -35,10 +36,12 @@ type backgroundTaskResult struct {
 	replyTo *actor.PID
 }
 
-func NewModbusActor(readTimeout time.Duration, readTimeoutAfterSet time.Duration, inverter sunspec_modbus.InverterModbusReader, acMeter sunspec_modbus.ACMeterModbusReader, logger *zap.Logger) *ModbusActor {
+func NewModbusActor(readTimeout time.Duration, readTimeoutAfterSet time.Duration, inverter domain.InverterDevice, acMeter domain.ACMeterModbusReader, logger *zap.Logger) *ModbusActor {
 	act := &ModbusActor{
 		inverter:            inverter,
 		acMeter:             acMeter,
+		inverterDeviceInfo:  nil,
+		acMeterDeviceInfo:   nil,
 		behavior:            actor.NewBehavior(),
 		stash:               &actorutil.Stash{},
 		logger:              actorutil.ActorLogger(domain.ACTOR_ID_MODBUS, logger),
@@ -62,12 +65,11 @@ func (state *ModbusActor) StartingReceive(ctx actor.Context) {
 			if err != nil {
 				panic(err)
 			}
-
 		}
 		if state.acMeter != nil {
 			err := state.acMeter.Open()
 			if err != nil {
-				panic(err)
+				logger.Warn(err)
 			}
 		}
 		state.scheduler = scheduler.NewTimerScheduler(ctx)
@@ -96,18 +98,25 @@ func (state *ModbusActor) DefaultReceive(ctx actor.Context) {
 	case domain.GetDevicesInfoRequest:
 		state.logger.Debug("modbus@default: GetDevicesInfoRequest")
 		sender := actorutil.ForRequest(msg).ReplyTo(ctx)
-		actorutil.MapBackgroundTask(actorutil.NewBackgroundTask(ctx, state.getDevicesInfo),
-			mapTaskResult[domain.GetDevicesInfoResponse](sender)).Recover(func(err error) backgroundTaskResult {
-			return backgroundTaskResult{
-				message: domain.GetDevicesInfoResponse{
-					ActorResponseMixIn: domain.ActorResponseMixIn{
-						ResponseError: err,
+		if state.inverterDeviceInfo != nil && state.acMeterDeviceInfo != nil {
+			ctx.Send(sender, domain.GetDevicesInfoResponse{
+				Inverter: state.inverterDeviceInfo,
+				ACMeter:  state.acMeterDeviceInfo,
+			})
+		} else {
+			actorutil.MapBackgroundTask(actorutil.NewBackgroundTask(ctx, state.getDevicesInfo),
+				mapTaskResult[domain.GetDevicesInfoResponse](sender)).Recover(func(err error) backgroundTaskResult {
+				return backgroundTaskResult{
+					message: domain.GetDevicesInfoResponse{
+						ActorResponseMixIn: domain.ActorResponseMixIn{
+							ResponseError: err,
+						},
 					},
-				},
-				replyTo: sender,
-			}
-		}).WithTimeout(state.readTimeout).PipeTo(ctx.Self())
-		state.behavior.BecomeStacked(NewWaitingModbusActor(state, reflect.TypeOf(msg)).WaitingModbus)
+					replyTo: sender,
+				}
+			}).WithTimeout(state.readTimeout).PipeTo(ctx.Self())
+			state.behavior.BecomeStacked(NewWaitingModbusActor(state, reflect.TypeOf(msg)).WaitingModbus)
+		}
 	case domain.GetPowerFlowRequest:
 		state.logger.Debug("modbus@default: GetPowerFlowRequest")
 		sender := actorutil.ForRequest(msg).ReplyTo(ctx)
@@ -218,6 +227,12 @@ func (waitingState *waitingModbusActor) WaitingModbus(ctx actor.Context) {
 		for _, pid := range waitingState.otherRequesters {
 			ctx.Send(pid, msg.message)
 		}
+		if devicesInfo, isGetDevicesInfo := msg.message.(domain.GetDevicesInfoResponse); isGetDevicesInfo {
+			if devicesInfo.ResponseError == nil && devicesInfo.Inverter != nil && devicesInfo.ACMeter != nil {
+				waitingState.state.inverterDeviceInfo = devicesInfo.Inverter
+				waitingState.state.acMeterDeviceInfo = devicesInfo.ACMeter
+			}
+		}
 		waitingState.state.behavior.UnbecomeStacked()
 		waitingState.state.stash.UnstashAll(ctx)
 	case *actor.Stopping:
@@ -300,8 +315,8 @@ func (state *ModbusActor) WaitingReadTimeout(ctx actor.Context) func(actor.Conte
 }
 
 func (a *ModbusActor) getDevicesInfo() (*domain.GetDevicesInfoResponse, error) {
-	var inverter *sunspec_modbus.InverterInfo
-	var acMeter *sunspec_modbus.ACMeterInfo
+	var inverter *domain.InverterInfo
+	var acMeter *domain.ACMeterInfo
 	var err error
 
 	if a.inverter != nil {
@@ -332,8 +347,8 @@ func (a *ModbusActor) getDevicesInfo() (*domain.GetDevicesInfoResponse, error) {
 }
 
 func (a *ModbusActor) getPowerFlow() (*domain.GetPowerFlowResponse, error) {
-	var inverter *sunspec_modbus.InverterPowerFlow
-	var acMeter *sunspec_modbus.ACMeterPowerFlow
+	var inverter *domain.InverterPowerFlow
+	var acMeter *domain.ACMeterPowerFlow
 	var err error
 
 	if a.inverter != nil {
@@ -364,7 +379,7 @@ func (a *ModbusActor) getPowerFlow() (*domain.GetPowerFlowResponse, error) {
 }
 
 func (a *ModbusActor) getInverterState() (*domain.GetInverterStateResponse, error) {
-	var state *sunspec_modbus.InverterState
+	var state *domain.InverterState
 	var err error
 
 	if a.inverter != nil {
@@ -374,13 +389,23 @@ func (a *ModbusActor) getInverterState() (*domain.GetInverterStateResponse, erro
 			return nil, err
 		}
 	}
+	var vendorInverterState *domain.VendorInverterState
+	if vendorInverter, ok := a.inverter.(domain.VendorInverterDevice); ok {
+		// additional vendor state fetch if needed
+		vendorInverterState, err = vendorInverter.GetVendorState()
+		if err != nil {
+			logger.Error(err)
+			return nil, err
+		}
+	}
 	return &domain.GetInverterStateResponse{
-		InverterState: state,
+		InverterState:       state,
+		VendorInverterState: vendorInverterState,
 	}, nil
 }
 
 func (a *ModbusActor) getInverterStorageState() (*domain.GetStorageStateResponse, error) {
-	var state *sunspec_modbus.StorageState
+	var state *domain.StorageState
 	var err error
 
 	if a.inverter != nil {
@@ -396,9 +421,9 @@ func (a *ModbusActor) getInverterStorageState() (*domain.GetStorageStateResponse
 }
 
 func (a *ModbusActor) getStorageControlPowerFlow() (*domain.GetStorageControlPowerFlowResponse, error) {
-	var state *sunspec_modbus.StorageState
-	var meterFlow *sunspec_modbus.ACMeterPowerFlow
-	var invFlow *sunspec_modbus.InverterPowerFlow
+	var state *domain.StorageState
+	var meterFlow *domain.ACMeterPowerFlow
+	var invFlow *domain.InverterPowerFlow
 	var err error
 
 	if a.inverter != nil {
@@ -427,7 +452,7 @@ func (a *ModbusActor) getStorageControlPowerFlow() (*domain.GetStorageControlPow
 	}, nil
 }
 
-func (a *ModbusActor) setStorageControl(params sunspec_modbus.StorageControlParams) domain.SetStorageControlResponse {
+func (a *ModbusActor) setStorageControl(params domain.StorageControlParams) domain.SetStorageControlResponse {
 	if a.inverter != nil {
 		err := a.inverter.SetStorageControl(params)
 		if err != nil {

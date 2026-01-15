@@ -5,7 +5,6 @@ import (
 
 	"github.com/berfenger/frostnews2mqtt/internal/core/domain"
 	"github.com/berfenger/frostnews2mqtt/internal/core/port"
-	"github.com/berfenger/frostnews2mqtt/pkg/sunspec_modbus"
 
 	"go.uber.org/zap"
 )
@@ -18,9 +17,9 @@ type DefaultBatteryControlLogic struct {
 	Logger                  *zap.Logger
 }
 
-func (cfg *DefaultBatteryControlLogic) Loop(prevPowerValue int32, storageState *sunspec_modbus.StorageState,
-	acMeterPowerFlow *sunspec_modbus.ACMeterPowerFlow,
-	inverterPowerFlow *sunspec_modbus.InverterPowerFlow,
+func (cfg *DefaultBatteryControlLogic) Loop(prevPowerValue int32, storageState *domain.StorageState,
+	acMeterPowerFlow *domain.ACMeterPowerFlow,
+	inverterPowerFlow *domain.InverterPowerFlow,
 	targetSoC uint8) domain.BatteryChargeControlTickResult {
 
 	if storageState.StateOfCharge >= float64(targetSoC) {

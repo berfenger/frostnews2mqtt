@@ -1,12 +1,15 @@
 package actorutil
 
 import (
+	"context"
 	"log/slog"
 	"strconv"
 	"time"
 
+	"github.com/berfenger/frostnews2mqtt/internal/core/component"
 	"github.com/berfenger/frostnews2mqtt/internal/core/domain"
 	"github.com/berfenger/frostnews2mqtt/internal/mqtt"
+	"github.com/berfenger/frostnews2mqtt/pkg/util/logutil"
 
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/lmittmann/tint"
@@ -23,7 +26,8 @@ func PipeToSelfWithRecover(ctx actor.Context, future actor.Future, mapFn func(er
 	})
 }
 
-func NewActorSystemWithZapLogger(logger *zap.Logger) *actor.ActorSystem {
+func NewActorSystem(ctx context.Context) *actor.ActorSystem {
+	logger := logutil.FromContextOrDefault(ctx, zap.NewNop())
 	stdOutLogger := zap.NewStdLog(logger)
 
 	slogLevel := slog.LevelInfo
@@ -57,15 +61,15 @@ func ActorLogger(actorName string, logger *zap.Logger) *zap.Logger {
 
 func ParsedMQTTCommandToCommand(cmd mqtt.ParsedMQTTCommand) (domain.ActorRequest, error) {
 	switch cmd.DeviceId {
-	case domain.SWITCH_ID_BATTERY_HOLD:
+	case component.SWITCH_ID_BATTERY_HOLD:
 		return domain.BatteryControlHoldRequest{
 			Enable: cmd.Payload == "on",
 		}, nil
-	case domain.SWITCH_ID_BATTERY_CHARGE:
+	case component.SWITCH_ID_BATTERY_CHARGE:
 		return domain.BatteryControlChargeRequest{
 			Enable: cmd.Payload == "on",
 		}, nil
-	case domain.INPUT_NUMBER_ID_BATTERY_CHARGE_TARGET_SOC:
+	case component.INPUT_NUMBER_ID_BATTERY_CHARGE_TARGET_SOC:
 		value, err := strconv.ParseUint(cmd.Payload, 10, 8)
 		if err != nil || value > 100 {
 			return nil, err

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/berfenger/frostnews2mqtt/internal/config"
+	"github.com/berfenger/frostnews2mqtt/internal/core/component"
 	"github.com/berfenger/frostnews2mqtt/internal/core/domain"
 	"github.com/berfenger/frostnews2mqtt/internal/util/actorutil"
 
@@ -133,39 +134,39 @@ func (state *HADiscoveryActor) WaitingInfoReceive(ctx actor.Context) {
 		var switches []domain.GenericSwitch
 		var inputNumbers []domain.GenericInputNumber
 
-		bridgeDevice := domain.BridgeDevice(state.config.MQTT.BaseTopic)
-		bridgeSensors := domain.BridgeSensors(bridgeDevice)
+		bridgeDevice := component.BridgeDevice(state.config.MQTT.BaseTopic)
+		bridgeSensors := component.BridgeSensors(bridgeDevice)
 		sensors = append(sensors, bridgeSensors...)
 
-		inverterDevice := domain.InverterDevice(msg.Inverter)
+		inverterDevice := component.InverterDevice(msg.Inverter)
 		inverterDevice.ViaDevice = bridgeDevice.Id
-		inverterSensors := domain.InverterBaseSensors(inverterDevice, msg.Inverter, state.config.MonitorConfig.TrackHousePower && msg.ACMeter != nil)
+		inverterSensors := component.InverterBaseSensors(inverterDevice, msg.Inverter, state.config.MonitorConfig.TrackHousePower && msg.ACMeter != nil)
 		for i := range inverterSensors {
 			if i > 0 {
-				inverterSensors[i].Device = domain.IdDevice(inverterDevice)
+				inverterSensors[i].Device = component.IdDevice(inverterDevice)
 			}
 			sensors = append(sensors, inverterSensors[i])
 		}
 
 		if msg.Inverter.HasStorage {
-			storageSensors := domain.InverterStorageSensors(domain.IdDevice(inverterDevice))
+			storageSensors := component.InverterStorageSensors(component.IdDevice(inverterDevice))
 			sensors = append(sensors, storageSensors...)
 		}
 		if msg.ACMeter != nil {
-			acmeterDevice := domain.ACMeterDevice(msg.ACMeter)
+			acmeterDevice := component.ACMeterDevice(msg.ACMeter)
 			acmeterDevice.ViaDevice = bridgeDevice.Id
-			acMeterSensors := domain.ACMeterBaseSensors(acmeterDevice, msg.ACMeter)
+			acMeterSensors := component.ACMeterBaseSensors(acmeterDevice, msg.ACMeter)
 			for i := range acMeterSensors {
 				if i > 0 {
-					acMeterSensors[i].Device = domain.IdDevice(acmeterDevice)
+					acMeterSensors[i].Device = component.IdDevice(acmeterDevice)
 				}
 				sensors = append(sensors, acMeterSensors[i])
 			}
 		}
 
 		if msg.Inverter.HasStorage && msg.ACMeter != nil {
-			switches = append(switches, domain.BatteryControlSwitches(inverterDevice)...)
-			inputNumbers = append(inputNumbers, domain.BatteryControlInputNumbers(inverterDevice)...)
+			switches = append(switches, component.BatteryControlSwitches(inverterDevice)...)
+			inputNumbers = append(inputNumbers, component.BatteryControlInputNumbers(inverterDevice)...)
 		}
 
 		ctx.Send(state.mqttActor, domain.PublishDiscoveryRequest{

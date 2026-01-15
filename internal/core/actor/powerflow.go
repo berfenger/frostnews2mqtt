@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/berfenger/frostnews2mqtt/internal/config"
+	"github.com/berfenger/frostnews2mqtt/internal/core/component"
 	"github.com/berfenger/frostnews2mqtt/internal/core/domain"
-	"github.com/berfenger/frostnews2mqtt/internal/core/events"
 	"github.com/berfenger/frostnews2mqtt/internal/util/actorutil"
 
 	"github.com/asynkron/protoactor-go/actor"
@@ -127,15 +127,21 @@ func (state *PowerFlowActor) DefaultReceive(ctx actor.Context) {
 	case domain.GetInverterStateResponse:
 		state.logger.Debug("powerflow@default GetInverterStateResponse")
 		if !msg.HasResponseError() && msg.InverterState != nil {
-			evs := events.InverterStateToUpdateEvents(msg.InverterState)
+			evs := component.InverterStateToUpdateEvents(msg.InverterState)
 			for _, ev := range evs {
 				state.sendEventToMQTT(ctx, ev)
+			}
+			if msg.VendorInverterState != nil {
+				evs := component.VendorInverterStateToUpdateEvents(msg.VendorInverterState)
+				for _, ev := range evs {
+					state.sendEventToMQTT(ctx, ev)
+				}
 			}
 		}
 	case domain.GetStorageStateResponse:
 		state.logger.Debug("powerflow@default GetStorageStateResponse")
 		if !msg.HasResponseError() && msg.StorageState != nil {
-			evs := events.InverterStorageStateToUpdateEvents(msg.StorageState)
+			evs := component.InverterStorageStateToUpdateEvents(msg.StorageState)
 			for _, ev := range evs {
 				state.sendEventToMQTT(ctx, ev)
 			}
@@ -158,21 +164,21 @@ func (state *PowerFlowActor) WaitingPFReceive(ctx actor.Context) {
 		state.logger.Debug("powerflow@waiting GetPowerFlowResponse")
 		// Inverter power flow
 		if msg.Inverter != nil {
-			evs := events.InverterPowerFlowToUpdateEvents(msg.Inverter, state.hasStorage)
+			evs := component.InverterPowerFlowToUpdateEvents(msg.Inverter, state.hasStorage)
 			for _, ev := range evs {
 				state.sendEventToMQTT(ctx, ev)
 			}
 		}
 		// ACMeter power flow
 		if msg.ACMeter != nil {
-			evs := events.ACMeterPowerFlowToUpdateEvents(msg.ACMeter)
+			evs := component.ACMeterPowerFlowToUpdateEvents(msg.ACMeter)
 			for _, ev := range evs {
 				state.sendEventToMQTT(ctx, ev)
 			}
 		}
 		// House power
 		if state.config.MonitorConfig.TrackHousePower && msg.Inverter != nil && msg.ACMeter != nil {
-			evs := events.HousePowerUpdateEvents(msg.Inverter, msg.ACMeter)
+			evs := component.HousePowerUpdateEvents(msg.Inverter, msg.ACMeter)
 			for _, ev := range evs {
 				state.sendEventToMQTT(ctx, ev)
 			}

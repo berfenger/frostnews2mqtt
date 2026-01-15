@@ -1,16 +1,18 @@
 package actor
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
 
 	adactor "github.com/berfenger/frostnews2mqtt/internal/adapter/actor"
+	"github.com/berfenger/frostnews2mqtt/internal/adapter/device"
 	"github.com/berfenger/frostnews2mqtt/internal/core/domain"
 	"github.com/berfenger/frostnews2mqtt/internal/core/service"
 	"github.com/berfenger/frostnews2mqtt/internal/util"
 	"github.com/berfenger/frostnews2mqtt/internal/util/actorutil"
-	"github.com/berfenger/frostnews2mqtt/pkg/sunspec_modbus"
+	"github.com/berfenger/frostnews2mqtt/pkg/util/logutil"
 
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/stretchr/testify/assert"
@@ -20,8 +22,10 @@ import (
 func TestBatteryControlFlow(t *testing.T) {
 
 	logger := zap.Must(zap.NewDevelopment())
+	ctx := context.Background()
+	ctx = logutil.WithLogger(ctx, logger)
 
-	as := actorutil.NewActorSystemWithZapLogger(logger)
+	as := actorutil.NewActorSystem(ctx)
 
 	context := as.Root
 
@@ -32,8 +36,8 @@ func TestBatteryControlFlow(t *testing.T) {
 
 	// modbus actor
 	modbusProps := actor.PropsFromProducer(func() actor.Actor {
-		return adactor.NewModbusActor(2*time.Second, 2*time.Second, &sunspec_modbus.TestInverterModbusReader{},
-			&sunspec_modbus.TestACMeterModbusReader{}, logger)
+		return adactor.NewModbusActor(2*time.Second, 2*time.Second, &device.TestInverterModbusReader{},
+			&device.TestACMeterModbusReader{}, logger)
 	})
 	modbusActorPID := context.Spawn(modbusProps)
 

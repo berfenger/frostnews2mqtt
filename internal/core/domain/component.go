@@ -21,6 +21,7 @@ type GenericSensor struct {
 	EntityCategory    string // diagnostic, config, nil
 	EnabledByDefault  *bool
 	Icon              string
+	HasAttributes     bool
 }
 
 type GenericSwitch struct {

@@ -3,7 +3,8 @@ package domain
 import "fmt"
 
 type SensorUpdateEventMixIn struct {
-	Id string
+	Id         string
+	Attributes map[string]any
 }
 
 type SensorUpdateEvent interface {

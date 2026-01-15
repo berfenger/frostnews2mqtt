@@ -13,15 +13,18 @@ import (
 	"time"
 
 	adactor "github.com/berfenger/frostnews2mqtt/internal/adapter/actor"
+	"github.com/berfenger/frostnews2mqtt/internal/adapter/device"
 	"github.com/berfenger/frostnews2mqtt/internal/config"
 	"github.com/berfenger/frostnews2mqtt/internal/core/actor"
+	"github.com/berfenger/frostnews2mqtt/internal/core/domain"
 	"github.com/berfenger/frostnews2mqtt/internal/server"
 	"github.com/berfenger/frostnews2mqtt/internal/util/actorutil"
-	"github.com/berfenger/frostnews2mqtt/pkg/sunspec_modbus"
+	"github.com/berfenger/frostnews2mqtt/pkg/util/logutil"
 
 	pactor "github.com/asynkron/protoactor-go/actor"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 func gracefulShutdown(apiServer *http.Server, done chan bool) {
@@ -61,17 +64,21 @@ func main() {
 	// zap logger
 	zapCfg := zap.NewProductionConfig()
 	zapCfg.Level = zap.NewAtomicLevelAt(cfg.LogLevel)
+	zapCfg.EncoderConfig.EncodeTime = zapcore.TimeEncoderOfLayout(time.RFC3339)
 
 	logger := zap.Must(zapCfg.Build())
 
+	ctx := context.Background()
+	ctx = logutil.WithLogger(ctx, logger)
+
 	// init actor system
-	as := actorutil.NewActorSystemWithZapLogger(logger)
-	ctx := as.Root
+	as := actorutil.NewActorSystem(ctx)
+	actorCtx := as.Root
 
 	defer logger.Sync() //nolint:errcheck
 
 	// init Modbus actor provider
-	modbusProv, err := modbusActorProvider(cfg, logger)
+	modbusProv, err := modbusActorProvider(ctx, cfg)
 	if err != nil {
 		panic(err)
 	}
@@ -79,12 +86,12 @@ func main() {
 	props := pactor.PropsFromProducer(func() pactor.Actor {
 		return actor.NewMasterOfPuppetsActor(*cfg, modbusProv, mqttActorProvider(cfg, logger), logger)
 	})
-	pid, err := ctx.SpawnNamed(props, "master")
+	pid, err := actorCtx.SpawnNamed(props, "master")
 	if err != nil {
 		return
 	}
 
-	server := server.NewServer(*cfg, ctx, pid)
+	server := server.NewServer(*cfg, actorCtx, pid)
 	// Create a done channel to signal when the shutdown is complete
 	done := make(chan bool, 1)
 
@@ -100,7 +107,7 @@ func main() {
 	<-done
 	log.Println("Graceful shutdown complete.")
 
-	ctx.Stop(pid)
+	actorCtx.Stop(pid)
 	as.Shutdown()
 }
 
@@ -163,11 +170,11 @@ func initConfig() (*config.Config, error) {
 	cfg.MQTT.BaseTopic = baseTopic
 
 	// check and fix homeassistant discovery topic
-	hadBaseTopic, err := config.CheckMQTTTopic(cfg.MQTT.HADiscoveryTopic)
+	haBaseTopic, err := config.CheckMQTTTopic(cfg.MQTT.HADiscoveryTopic)
 	if err != nil {
 		return nil, errors.New("invalid homeassistant discovery topic. can only contain letters, numbers and underscores")
 	}
-	cfg.MQTT.HADiscoveryTopic = hadBaseTopic
+	cfg.MQTT.HADiscoveryTopic = haBaseTopic
 
 	// check bounds
 	if cfg.BatteryControlConfig.ControlIntervalMillis < 2000 {
@@ -190,29 +197,46 @@ func initConfig() (*config.Config, error) {
 	return &cfg, nil
 }
 
-func modbusActorProvider(cfg *config.Config, logger *zap.Logger) (actor.ModbusActorProvider, error) {
+func modbusActorProvider(ctx context.Context, cfg *config.Config) (actor.ModbusActorProvider, error) {
 
-	inv, err := sunspec_modbus.CreateInverterIntSFModbusReader(cfg.InverterModbusTcp.Host,
-		cfg.InverterModbusTcp.Port, uint8(cfg.InverterModbusTcp.InverterId), 1*time.Second,
-		cfg.InverterModbusTcp.IgnoreFronius, logger, nil)
+	var inv domain.InverterDevice
+	var acMeter domain.ACMeterModbusReader
+	var err error
 
-	if err != nil {
-		return nil, err
-	}
-
-	acMeter, err := sunspec_modbus.CreateACMeterIntSFModbusReader(cfg.InverterModbusTcp.Host,
-		cfg.InverterModbusTcp.Port, uint8(cfg.InverterModbusTcp.MeterId), 1*time.Second,
-		cfg.InverterModbusTcp.IgnoreFronius, logger, nil)
-
-	if err != nil {
-		return nil, err
+	switch cfg.InverterModbusTcp.Profile {
+	case config.InverterProfileFronius:
+		// fronius inverter + ac meter
+		inv, err = device.NewFroniusInverterClient(ctx, cfg.InverterModbusTcp.Host,
+			cfg.InverterModbusTcp.Port, uint8(cfg.InverterModbusTcp.InverterId), 1*time.Second, nil)
+		if err != nil {
+			return nil, err
+		}
+		acMeter, err = device.NewACMeterClient(ctx, cfg.InverterModbusTcp.Host,
+			cfg.InverterModbusTcp.Port, uint8(cfg.InverterModbusTcp.MeterId), 1*time.Second, nil)
+		if err != nil {
+			return nil, err
+		}
+	case config.InverterProfileSunspec:
+		// generic inverter + ac meter
+		inv, err = device.NewSunspecInverterClient(ctx, cfg.InverterModbusTcp.Host,
+			cfg.InverterModbusTcp.Port, uint8(cfg.InverterModbusTcp.InverterId), 1*time.Second, nil)
+		if err != nil {
+			return nil, err
+		}
+		acMeter, err = device.NewACMeterClient(ctx, cfg.InverterModbusTcp.Host,
+			cfg.InverterModbusTcp.Port, uint8(cfg.InverterModbusTcp.MeterId), 1*time.Second, nil)
+		if err != nil {
+			return nil, err
+		}
+	default:
+		return nil, fmt.Errorf("unsupported inverter profile: %v", cfg.InverterModbusTcp.Profile)
 	}
 
 	return func() *adactor.ModbusActor {
 		return adactor.NewModbusActor(
 			time.Duration(cfg.InverterModbusTcp.ReadTimeoutMillis)*time.Millisecond,
 			time.Duration(cfg.InverterModbusTcp.ReadDelayAfterChangeMillis)*time.Millisecond,
-			inv, acMeter, logger)
+			inv, acMeter, logutil.FromContext(ctx))
 	}, nil
 }
 

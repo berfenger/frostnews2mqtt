@@ -1,4 +1,4 @@
-package domain
+package component
 
 import (
 	"crypto/md5"
@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/berfenger/frostnews2mqtt/pkg/sunspec_modbus"
+	"github.com/berfenger/frostnews2mqtt/internal/core/domain"
 
 	"github.com/carlmjohnson/versioninfo"
 )
@@ -15,6 +15,7 @@ const (
 	SENSOR_ID_BRIDGE_STATE                    = "bridge"
 	SENSOR_ID_INVERTER_CABINET_TEMP           = "inverter_cabinet_temperature"
 	SENSOR_ID_INVERTER_OPERATING_STATE        = "inverter_operating_state"
+	SENSOR_ID_INVERTER_VENDOR_OPERATING_STATE = "inverter_vendor_operating_state"
 	SENSOR_ID_INVERTER_AC_POWER_FLOW          = "inverter_ac_power_flow"
 	SENSOR_ID_INVERTER_ACDC_POWER             = "inverter_acdc_power"
 	SENSOR_ID_INVERTER_DCAC_POWER             = "inverter_dcac_power"
@@ -57,12 +58,12 @@ const (
 	INPUT_NUMBER_MODE_SLIDER                  = "slider"
 )
 
-func BridgeDevice(baseTopic string) Device {
+func BridgeDevice(baseTopic string) domain.Device {
 	version := versioninfo.Short()
 	if version == "devel" {
 		version = fmt.Sprintf("dev-%s", time.Now().Format("2006.01.02.150405"))
 	}
-	return Device{
+	return domain.Device{
 		Id:           fmt.Sprintf("frostnews_bridge_%s", md5HashShort(baseTopic)),
 		Manufacturer: "ACasal",
 		Model:        "Frostnews",
@@ -71,8 +72,8 @@ func BridgeDevice(baseTopic string) Device {
 	}
 }
 
-func InverterDevice(info *sunspec_modbus.InverterInfo) Device {
-	return Device{
+func InverterDevice(info *domain.InverterInfo) domain.Device {
+	return domain.Device{
 		Id:           fmt.Sprintf("fro_inverter_%s", md5HashShort(info.Serial)),
 		Version:      info.Version,
 		Manufacturer: info.Manufacturer,
@@ -81,19 +82,19 @@ func InverterDevice(info *sunspec_modbus.InverterInfo) Device {
 	}
 }
 
-func IdDevice(device Device) Device {
-	return Device{
+func IdDevice(device domain.Device) domain.Device {
+	return domain.Device{
 		Id:   device.Id,
 		Name: device.Name,
 	}
 }
 
-func InverterBaseSensors(inverterDevice Device, info *sunspec_modbus.InverterInfo, trackHousePower bool) []GenericSensor {
+func InverterBaseSensors(inverterDevice domain.Device, info *domain.InverterInfo, trackHousePower bool) []domain.GenericSensor {
 
-	var sensors []GenericSensor
+	var sensors []domain.GenericSensor
 
 	// Inverter Cabinet Temperature
-	sensors = append(sensors, GenericSensor{
+	sensors = append(sensors, domain.GenericSensor{
 		Device:            inverterDevice,
 		Id:                SENSOR_ID_INVERTER_CABINET_TEMP,
 		SensorType:        "sensor",
@@ -105,16 +106,29 @@ func InverterBaseSensors(inverterDevice Device, info *sunspec_modbus.InverterInf
 	})
 
 	// Inverter Operating State
-	sensors = append(sensors, GenericSensor{
-		Device:     inverterDevice,
-		Id:         SENSOR_ID_INVERTER_OPERATING_STATE,
-		SensorType: "sensor",
-		Name:       "Inverter operating state",
-		UniqueId:   uniqueId(inverterDevice.Id, SENSOR_ID_INVERTER_OPERATING_STATE),
+	sensors = append(sensors, domain.GenericSensor{
+		Device:        inverterDevice,
+		Id:            SENSOR_ID_INVERTER_OPERATING_STATE,
+		SensorType:    "sensor",
+		Name:          "Inverter operating state",
+		UniqueId:      uniqueId(inverterDevice.Id, SENSOR_ID_INVERTER_OPERATING_STATE),
+		HasAttributes: true,
 	})
 
+	if info.HasVendorProfile {
+		// Inverter Vendor Operating State
+		sensors = append(sensors, domain.GenericSensor{
+			Device:        inverterDevice,
+			Id:            SENSOR_ID_INVERTER_VENDOR_OPERATING_STATE,
+			SensorType:    "sensor",
+			Name:          "Inverter vendor operating state",
+			UniqueId:      uniqueId(inverterDevice.Id, SENSOR_ID_INVERTER_VENDOR_OPERATING_STATE),
+			HasAttributes: true,
+		})
+	}
+
 	// Inverter AC Power
-	sensors = append(sensors, GenericSensor{
+	sensors = append(sensors, domain.GenericSensor{
 		Device:            inverterDevice,
 		Id:                SENSOR_ID_INVERTER_AC_POWER_FLOW,
 		SensorType:        "sensor",
@@ -126,7 +140,7 @@ func InverterBaseSensors(inverterDevice Device, info *sunspec_modbus.InverterInf
 	})
 
 	// Inverter AC-DC Power
-	sensors = append(sensors, GenericSensor{
+	sensors = append(sensors, domain.GenericSensor{
 		Device:            inverterDevice,
 		Id:                SENSOR_ID_INVERTER_ACDC_POWER,
 		SensorType:        "sensor",
@@ -138,7 +152,7 @@ func InverterBaseSensors(inverterDevice Device, info *sunspec_modbus.InverterInf
 	})
 
 	// Inverter DC-AC Power
-	sensors = append(sensors, GenericSensor{
+	sensors = append(sensors, domain.GenericSensor{
 		Device:            inverterDevice,
 		Id:                SENSOR_ID_INVERTER_DCAC_POWER,
 		SensorType:        "sensor",
@@ -150,7 +164,7 @@ func InverterBaseSensors(inverterDevice Device, info *sunspec_modbus.InverterInf
 	})
 
 	// Inverter PV Power
-	sensors = append(sensors, GenericSensor{
+	sensors = append(sensors, domain.GenericSensor{
 		Device:            inverterDevice,
 		Id:                SENSOR_ID_INVERTER_PV_POWER,
 		SensorType:        "sensor",
@@ -164,7 +178,7 @@ func InverterBaseSensors(inverterDevice Device, info *sunspec_modbus.InverterInf
 
 	if trackHousePower {
 		// House power
-		sensors = append(sensors, GenericSensor{
+		sensors = append(sensors, domain.GenericSensor{
 			Device:            inverterDevice,
 			Id:                SENSOR_ID_HOUSE_POWER,
 			SensorType:        "sensor",
@@ -180,12 +194,12 @@ func InverterBaseSensors(inverterDevice Device, info *sunspec_modbus.InverterInf
 	return sensors
 }
 
-func InverterStorageSensors(inverterDevice Device) []GenericSensor {
+func InverterStorageSensors(inverterDevice domain.Device) []domain.GenericSensor {
 
-	var sensors []GenericSensor
+	var sensors []domain.GenericSensor
 
 	// Battery SoC
-	sensors = append(sensors, GenericSensor{
+	sensors = append(sensors, domain.GenericSensor{
 		Device:            inverterDevice,
 		Id:                SENSOR_ID_BATTERY_SOC,
 		SensorType:        "sensor",
@@ -197,7 +211,7 @@ func InverterStorageSensors(inverterDevice Device) []GenericSensor {
 	})
 
 	// Battery Max Capacity
-	sensors = append(sensors, GenericSensor{
+	sensors = append(sensors, domain.GenericSensor{
 		Device:            inverterDevice,
 		Id:                SENSOR_ID_BATTERY_MAX_CAPACITY,
 		SensorType:        "sensor",
@@ -209,7 +223,7 @@ func InverterStorageSensors(inverterDevice Device) []GenericSensor {
 	})
 
 	// Battery Current Capacity
-	sensors = append(sensors, GenericSensor{
+	sensors = append(sensors, domain.GenericSensor{
 		Device:            inverterDevice,
 		Id:                SENSOR_ID_BATTERY_CURRENT_CAPACITY,
 		SensorType:        "sensor",
@@ -221,7 +235,7 @@ func InverterStorageSensors(inverterDevice Device) []GenericSensor {
 	})
 
 	// Battery Charge State
-	sensors = append(sensors, GenericSensor{
+	sensors = append(sensors, domain.GenericSensor{
 		Device:     inverterDevice,
 		Id:         SENSOR_ID_BATTERY_OPERATING_STATE,
 		SensorType: "sensor",
@@ -230,7 +244,7 @@ func InverterStorageSensors(inverterDevice Device) []GenericSensor {
 	})
 
 	// Battery Charge Power
-	sensors = append(sensors, GenericSensor{
+	sensors = append(sensors, domain.GenericSensor{
 		Device:            inverterDevice,
 		Id:                SENSOR_ID_BATTERY_CHARGE_POWER,
 		SensorType:        "sensor",
@@ -242,7 +256,7 @@ func InverterStorageSensors(inverterDevice Device) []GenericSensor {
 	})
 
 	// Battery Discharge Power
-	sensors = append(sensors, GenericSensor{
+	sensors = append(sensors, domain.GenericSensor{
 		Device:            inverterDevice,
 		Id:                SENSOR_ID_BATTERY_DISCHARGE_POWER,
 		SensorType:        "sensor",
@@ -254,7 +268,7 @@ func InverterStorageSensors(inverterDevice Device) []GenericSensor {
 	})
 
 	// Battery Power Flow
-	sensors = append(sensors, GenericSensor{
+	sensors = append(sensors, domain.GenericSensor{
 		Device:            inverterDevice,
 		Id:                SENSOR_ID_BATTERY_POWER_FLOW,
 		SensorType:        "sensor",
@@ -268,8 +282,8 @@ func InverterStorageSensors(inverterDevice Device) []GenericSensor {
 	return sensors
 }
 
-func ACMeterDevice(info *sunspec_modbus.ACMeterInfo) Device {
-	return Device{
+func ACMeterDevice(info *domain.ACMeterInfo) domain.Device {
+	return domain.Device{
 		Id:           fmt.Sprintf("fro_acmeter_%s", md5HashShort(info.Serial)),
 		Version:      info.Version,
 		Manufacturer: info.Manufacturer,
@@ -278,12 +292,12 @@ func ACMeterDevice(info *sunspec_modbus.ACMeterInfo) Device {
 	}
 }
 
-func ACMeterBaseSensors(acmeterDevice Device, info *sunspec_modbus.ACMeterInfo) []GenericSensor {
+func ACMeterBaseSensors(acmeterDevice domain.Device, info *domain.ACMeterInfo) []domain.GenericSensor {
 
-	var sensors []GenericSensor
+	var sensors []domain.GenericSensor
 
 	// ACMeter Power Flow
-	sensors = append(sensors, GenericSensor{
+	sensors = append(sensors, domain.GenericSensor{
 		Device:            acmeterDevice,
 		Id:                SENSOR_ID_ACMETER_POWER_FLOW,
 		SensorType:        "sensor",
@@ -295,7 +309,7 @@ func ACMeterBaseSensors(acmeterDevice Device, info *sunspec_modbus.ACMeterInfo) 
 	})
 
 	// ACMeter Import Power
-	sensors = append(sensors, GenericSensor{
+	sensors = append(sensors, domain.GenericSensor{
 		Device:            acmeterDevice,
 		Id:                SENSOR_ID_ACMETER_IMPORT_POWER,
 		SensorType:        "sensor",
@@ -307,7 +321,7 @@ func ACMeterBaseSensors(acmeterDevice Device, info *sunspec_modbus.ACMeterInfo) 
 	})
 
 	// ACMeter Export Power
-	sensors = append(sensors, GenericSensor{
+	sensors = append(sensors, domain.GenericSensor{
 		Device:            acmeterDevice,
 		Id:                SENSOR_ID_ACMETER_EXPORT_POWER,
 		SensorType:        "sensor",
@@ -319,7 +333,7 @@ func ACMeterBaseSensors(acmeterDevice Device, info *sunspec_modbus.ACMeterInfo) 
 	})
 
 	// ACMeter Total Energy Imported
-	sensors = append(sensors, GenericSensor{
+	sensors = append(sensors, domain.GenericSensor{
 		Device:            acmeterDevice,
 		Id:                SENSOR_ID_ACMETER_TOTAL_ENERGY_IMPORTED,
 		SensorType:        "sensor",
@@ -331,7 +345,7 @@ func ACMeterBaseSensors(acmeterDevice Device, info *sunspec_modbus.ACMeterInfo) 
 	})
 
 	// ACMeter Total Energy Exported
-	sensors = append(sensors, GenericSensor{
+	sensors = append(sensors, domain.GenericSensor{
 		Device:            acmeterDevice,
 		Id:                SENSOR_ID_ACMETER_TOTAL_ENERGY_EXPORTED,
 		SensorType:        "sensor",
@@ -343,7 +357,7 @@ func ACMeterBaseSensors(acmeterDevice Device, info *sunspec_modbus.ACMeterInfo) 
 	})
 
 	// ACMeter Grid Frequency
-	sensors = append(sensors, GenericSensor{
+	sensors = append(sensors, domain.GenericSensor{
 		Device:            acmeterDevice,
 		Id:                SENSOR_ID_ACMETER_GRID_FREQUENCY,
 		SensorType:        "sensor",
@@ -357,7 +371,7 @@ func ACMeterBaseSensors(acmeterDevice Device, info *sunspec_modbus.ACMeterInfo) 
 	})
 
 	// ACMeter Grid Voltage
-	sensors = append(sensors, GenericSensor{
+	sensors = append(sensors, domain.GenericSensor{
 		Device:            acmeterDevice,
 		Id:                SENSOR_ID_ACMETER_GRID_VOLTAGE,
 		SensorType:        "sensor",
@@ -372,12 +386,12 @@ func ACMeterBaseSensors(acmeterDevice Device, info *sunspec_modbus.ACMeterInfo) 
 	return sensors
 }
 
-func BridgeSensors(bridgeDevice Device) []GenericSensor {
+func BridgeSensors(bridgeDevice domain.Device) []domain.GenericSensor {
 
-	var sensors []GenericSensor
+	var sensors []domain.GenericSensor
 
 	// ACMeter Power Flow
-	sensors = append(sensors, GenericSensor{
+	sensors = append(sensors, domain.GenericSensor{
 		Device:         bridgeDevice,
 		Id:             SENSOR_ID_BRIDGE_STATE,
 		SensorType:     "binary_sensor",
@@ -390,12 +404,12 @@ func BridgeSensors(bridgeDevice Device) []GenericSensor {
 	return sensors
 }
 
-func BatteryControlSwitches(inverterDevice Device) []GenericSwitch {
+func BatteryControlSwitches(inverterDevice domain.Device) []domain.GenericSwitch {
 
-	var switches []GenericSwitch
+	var switches []domain.GenericSwitch
 
 	// Battery hold
-	switches = append(switches, GenericSwitch{
+	switches = append(switches, domain.GenericSwitch{
 		Device:   inverterDevice,
 		Id:       SWITCH_ID_BATTERY_HOLD,
 		Name:     "Battery hold",
@@ -403,7 +417,7 @@ func BatteryControlSwitches(inverterDevice Device) []GenericSwitch {
 		Icon:     "mdi:battery-lock",
 	})
 	// Battery charge
-	switches = append(switches, GenericSwitch{
+	switches = append(switches, domain.GenericSwitch{
 		Device:   inverterDevice,
 		Id:       SWITCH_ID_BATTERY_CHARGE,
 		Name:     "Battery charge",
@@ -414,12 +428,12 @@ func BatteryControlSwitches(inverterDevice Device) []GenericSwitch {
 	return switches
 }
 
-func BatteryControlInputNumbers(inverterDevice Device) []GenericInputNumber {
+func BatteryControlInputNumbers(inverterDevice domain.Device) []domain.GenericInputNumber {
 
-	var inputNumbers []GenericInputNumber
+	var inputNumbers []domain.GenericInputNumber
 
 	// Battery charge target SoC
-	inputNumbers = append(inputNumbers, GenericInputNumber{
+	inputNumbers = append(inputNumbers, domain.GenericInputNumber{
 		Device:       inverterDevice,
 		Id:           INPUT_NUMBER_ID_BATTERY_CHARGE_TARGET_SOC,
 		Name:         "Battery charge target SoC",

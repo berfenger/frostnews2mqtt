@@ -6,11 +6,10 @@ import (
 	"time"
 
 	"github.com/berfenger/frostnews2mqtt/internal/config"
+	"github.com/berfenger/frostnews2mqtt/internal/core/component"
 	"github.com/berfenger/frostnews2mqtt/internal/core/domain"
-	"github.com/berfenger/frostnews2mqtt/internal/core/events"
 	"github.com/berfenger/frostnews2mqtt/internal/core/port"
 	"github.com/berfenger/frostnews2mqtt/internal/util/actorutil"
-	"github.com/berfenger/frostnews2mqtt/pkg/sunspec_modbus"
 
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/asynkron/protoactor-go/scheduler"
@@ -258,7 +257,7 @@ func NewBCChargingState(fromActor *BatteryControlActor, hold bool) BCChargingSta
 	return BCChargingState{
 		actor: fromActor,
 		hold:  hold,
-		params: sunspec_modbus.StorageControlParams{
+		params: domain.StorageControlParams{
 			MinChargePowerWatt:    -1,
 			MaxChargePowerWatt:    -1,
 			MinDischargePowerWatt: -1,
@@ -271,7 +270,7 @@ func NewBCChargingState(fromActor *BatteryControlActor, hold bool) BCChargingSta
 type BCChargingState struct {
 	actorutil.ActorState
 	actor      *BatteryControlActor
-	params     sunspec_modbus.StorageControlParams
+	params     domain.StorageControlParams
 	hold       bool
 	cancelTick scheduler.CancelFunc
 }
@@ -404,7 +403,7 @@ func (state BCChargingState) sendStorageControl(ctx actor.Context) BCChargingSta
 func NewBCHoldingState(fromActor *BatteryControlActor) BCHoldingState {
 	return BCHoldingState{
 		actor: fromActor,
-		params: sunspec_modbus.StorageControlParams{
+		params: domain.StorageControlParams{
 			MinChargePowerWatt:    -1,
 			MaxChargePowerWatt:    -1,
 			MinDischargePowerWatt: -1,
@@ -417,7 +416,7 @@ func NewBCHoldingState(fromActor *BatteryControlActor) BCHoldingState {
 type BCHoldingState struct {
 	actorutil.ActorState
 	actor      *BatteryControlActor
-	params     sunspec_modbus.StorageControlParams
+	params     domain.StorageControlParams
 	cancelTick scheduler.CancelFunc
 }
 
@@ -566,7 +565,7 @@ func (state BCAwaitStorageControlResponseState) Receive(ctx actor.Context) {
 	}
 }
 
-func (state BCAwaitStorageControlResponseState) OnEnterAction(ctx actor.Context, params sunspec_modbus.StorageControlParams) BCAwaitStorageControlResponseState {
+func (state BCAwaitStorageControlResponseState) OnEnterAction(ctx actor.Context, params domain.StorageControlParams) BCAwaitStorageControlResponseState {
 	actorutil.PipeToSelfWithRecover(ctx, ctx.RequestFuture(state.actor.modbusActor,
 		domain.SetStorageControlRequest{Params: params}, 2*time.Second),
 		func(err error) any {
@@ -653,17 +652,17 @@ func (state *BatteryControlActor) updateSwitchState(ctx actor.Context, controlHo
 }
 
 func (state *BatteryControlActor) updateHoldSwitchState(ctx actor.Context, switchState bool) {
-	event := events.BatteryControlHoldSwitchUpdateEvents(switchState)
+	event := component.BatteryControlHoldSwitchUpdateEvents(switchState)
 	state.sendEventToMQTT(ctx, event)
 }
 
 func (state *BatteryControlActor) updateChargeSwitchState(ctx actor.Context, switchState bool) {
-	event := events.BatteryControlChargeSwitchUpdateEvents(switchState)
+	event := component.BatteryControlChargeSwitchUpdateEvents(switchState)
 	state.sendEventToMQTT(ctx, event)
 }
 
 func (state *BatteryControlActor) updateChargeTargetSoC(ctx actor.Context, targetSoC uint8) {
-	events := events.BatteryControlSetTargetSoCUpdateEvents(targetSoC)
+	events := component.BatteryControlSetTargetSoCUpdateEvents(targetSoC)
 	for _, ev := range events {
 		state.sendEventToMQTT(ctx, ev)
 	}

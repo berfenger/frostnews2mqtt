@@ -6,9 +6,9 @@ import (
 	"time"
 
 	adactor "github.com/berfenger/frostnews2mqtt/internal/adapter/actor"
+	"github.com/berfenger/frostnews2mqtt/internal/adapter/device"
 	"github.com/berfenger/frostnews2mqtt/internal/core/domain"
 	"github.com/berfenger/frostnews2mqtt/internal/util"
-	"github.com/berfenger/frostnews2mqtt/pkg/sunspec_modbus"
 
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/stretchr/testify/assert"
@@ -27,7 +27,7 @@ func TestMasterActor(t *testing.T) {
 
 	props := actor.PropsFromProducer(func() actor.Actor {
 		return NewMasterOfPuppetsActor(cfg, func() *adactor.ModbusActor {
-			return adactor.NewModbusActor(2*time.Second, 2*time.Second, &sunspec_modbus.TestInverterModbusReader{}, &sunspec_modbus.TestACMeterModbusReader{}, logger)
+			return adactor.NewModbusActor(2*time.Second, 2*time.Second, &device.TestInverterModbusReader{}, &device.TestACMeterModbusReader{}, logger)
 		}, func() *adactor.MQTTActor {
 			return adactor.NewTestMQTTActor(&cfg, logger)
 		}, logger)
