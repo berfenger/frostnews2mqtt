@@ -126,25 +126,18 @@ func (state *PowerFlowActor) DefaultReceive(ctx actor.Context) {
 		state.behavior.BecomeStacked(state.WaitingPFReceive)
 	case domain.GetInverterStateResponse:
 		state.logger.Debug("powerflow@default GetInverterStateResponse")
+		events := component.NewSensorUpdateEvents()
 		if !msg.HasResponseError() && msg.InverterState != nil {
-			evs := component.InverterStateToUpdateEvents(msg.InverterState)
-			for _, ev := range evs {
-				state.sendEventToMQTT(ctx, ev)
-			}
+			events.AddInverterStateToUpdateEvents(msg.InverterState)
 			if msg.VendorInverterState != nil {
-				evs := component.VendorInverterStateToUpdateEvents(msg.VendorInverterState)
-				for _, ev := range evs {
-					state.sendEventToMQTT(ctx, ev)
-				}
+				events.AddVendorInverterStateToUpdateEvents(msg.VendorInverterState)
 			}
 		}
+		state.sendEventsToMQTT(ctx, events)
 	case domain.GetStorageStateResponse:
 		state.logger.Debug("powerflow@default GetStorageStateResponse")
 		if !msg.HasResponseError() && msg.StorageState != nil {
-			evs := component.InverterStorageStateToUpdateEvents(msg.StorageState)
-			for _, ev := range evs {
-				state.sendEventToMQTT(ctx, ev)
-			}
+			state.sendEventsToMQTT(ctx, component.NewSensorUpdateEvents().AddInverterStorageStateToUpdateEvents(msg.StorageState))
 		}
 	default:
 		state.logger.Debug("powerflow@default: stash", zap.String("type", fmt.Sprintf("%T", msg)))
@@ -162,27 +155,20 @@ func (state *PowerFlowActor) WaitingPFReceive(ctx actor.Context) {
 			return
 		}
 		state.logger.Debug("powerflow@waiting GetPowerFlowResponse")
+		events := component.NewSensorUpdateEvents()
 		// Inverter power flow
 		if msg.Inverter != nil {
-			evs := component.InverterPowerFlowToUpdateEvents(msg.Inverter, state.hasStorage)
-			for _, ev := range evs {
-				state.sendEventToMQTT(ctx, ev)
-			}
+			events.AddInverterPowerFlowEvents(msg.Inverter, state.hasStorage)
 		}
 		// ACMeter power flow
 		if msg.ACMeter != nil {
-			evs := component.ACMeterPowerFlowToUpdateEvents(msg.ACMeter)
-			for _, ev := range evs {
-				state.sendEventToMQTT(ctx, ev)
-			}
+			events.AddACMeterPowerFlowToUpdateEvents(msg.ACMeter)
 		}
 		// House power
 		if state.config.MonitorConfig.TrackHousePower && msg.Inverter != nil {
-			evs := component.HousePowerUpdateEvents(msg.Inverter, msg.ACMeter)
-			for _, ev := range evs {
-				state.sendEventToMQTT(ctx, ev)
-			}
+			events.AddHousePowerUpdateEvents(msg.Inverter, msg.ACMeter)
 		}
+		state.sendEventsToMQTT(ctx, events)
 
 		state.behavior.UnbecomeStacked()
 		state.stash.UnstashAll(ctx)
@@ -214,5 +200,11 @@ func (state *PowerFlowActor) WaitingInfoReceive(ctx actor.Context) {
 func (state *PowerFlowActor) sendEventToMQTT(ctx actor.Context, ev domain.SensorUpdateEvent) {
 	ctx.Send(state.mqttActor, domain.PublishSensorUpdateRequest{
 		Event: ev,
+	})
+}
+
+func (state *PowerFlowActor) sendEventsToMQTT(ctx actor.Context, ev *component.SensorUpdateEvents) {
+	ev.ForEach(func(event domain.SensorUpdateEvent) {
+		state.sendEventToMQTT(ctx, event)
 	})
 }

@@ -652,24 +652,25 @@ func (state *BatteryControlActor) updateSwitchState(ctx actor.Context, controlHo
 }
 
 func (state *BatteryControlActor) updateHoldSwitchState(ctx actor.Context, switchState bool) {
-	event := component.BatteryControlHoldSwitchUpdateEvents(switchState)
-	state.sendEventToMQTT(ctx, event)
+	state.sendEventsToMQTT(ctx, component.NewSensorUpdateEvents().AddBatteryControlHoldSwitchUpdateEvent(switchState))
 }
 
 func (state *BatteryControlActor) updateChargeSwitchState(ctx actor.Context, switchState bool) {
-	event := component.BatteryControlChargeSwitchUpdateEvents(switchState)
-	state.sendEventToMQTT(ctx, event)
+	state.sendEventsToMQTT(ctx, component.NewSensorUpdateEvents().AddBatteryControlChargeSwitchUpdateEvent(switchState))
 }
 
 func (state *BatteryControlActor) updateChargeTargetSoC(ctx actor.Context, targetSoC uint8) {
-	events := component.BatteryControlSetTargetSoCUpdateEvents(targetSoC)
-	for _, ev := range events {
-		state.sendEventToMQTT(ctx, ev)
-	}
+	state.sendEventsToMQTT(ctx, component.NewSensorUpdateEvents().AddBatteryControlSetTargetSoCUpdateEvents(targetSoC))
 }
 
 func (state *BatteryControlActor) sendEventToMQTT(ctx actor.Context, ev domain.SensorUpdateEvent) {
 	ctx.Send(state.mqttActor, domain.PublishSensorUpdateRequest{
 		Event: ev,
+	})
+}
+
+func (state *BatteryControlActor) sendEventsToMQTT(ctx actor.Context, ev *component.SensorUpdateEvents) {
+	ev.ForEach(func(event domain.SensorUpdateEvent) {
+		state.sendEventToMQTT(ctx, event)
 	})
 }

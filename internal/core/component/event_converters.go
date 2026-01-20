@@ -2,19 +2,24 @@ package component
 
 import (
 	"github.com/berfenger/frostnews2mqtt/internal/core/domain"
+	"github.com/berfenger/frostnews2mqtt/internal/util"
 )
 
-func InverterPowerFlowToUpdateEvents(pf *domain.InverterPowerFlow, hasStorage bool) []domain.SensorUpdateEvent {
-	var events []domain.SensorUpdateEvent
+type SensorUpdateEvents struct {
+	util.SensorUpdateEventBuilder
+}
+
+func NewSensorUpdateEvents() *SensorUpdateEvents {
+	return &SensorUpdateEvents{
+		SensorUpdateEventBuilder: *util.NewSensorUpdateEventBuilder(),
+	}
+}
+
+func (events *SensorUpdateEvents) AddInverterPowerFlowEvents(pf *domain.InverterPowerFlow, hasStorage bool) *SensorUpdateEvents {
 
 	// Inverter AC Power
-	events = append(events, domain.FloatSensorUpdateEvent{
-		SensorUpdateEventMixIn: domain.SensorUpdateEventMixIn{
-			Id: SENSOR_ID_INVERTER_AC_POWER_FLOW,
-		},
-		Value:    pf.ACPowerWatt,
-		Decimals: 2,
-	})
+	events.AddFloatSensorUpdateEvent(SENSOR_ID_INVERTER_AC_POWER_FLOW, pf.ACPowerWatt, 2)
+
 	var acdc_power float64 = 0
 	var dcac_power float64 = 0
 	if pf.ACPowerWatt > 0 {
@@ -22,255 +27,124 @@ func InverterPowerFlowToUpdateEvents(pf *domain.InverterPowerFlow, hasStorage bo
 	} else if pf.ACPowerWatt < 0 {
 		acdc_power = pf.ACPowerWatt
 	}
-	events = append(events, domain.FloatSensorUpdateEvent{
-		SensorUpdateEventMixIn: domain.SensorUpdateEventMixIn{
-			Id: SENSOR_ID_INVERTER_ACDC_POWER,
-		},
-		Value:    acdc_power,
-		Decimals: 2,
-	})
-	events = append(events, domain.FloatSensorUpdateEvent{
-		SensorUpdateEventMixIn: domain.SensorUpdateEventMixIn{
-			Id: SENSOR_ID_INVERTER_DCAC_POWER,
-		},
-		Value:    dcac_power,
-		Decimals: 2,
-	})
+	events.AddFloatSensorUpdateEvent(SENSOR_ID_INVERTER_ACDC_POWER, acdc_power, 2)
+	events.AddFloatSensorUpdateEvent(SENSOR_ID_INVERTER_DCAC_POWER, dcac_power, 2)
+
 	// Inverter PV Power
-	events = append(events, domain.FloatSensorUpdateEvent{
-		SensorUpdateEventMixIn: domain.SensorUpdateEventMixIn{
-			Id: SENSOR_ID_INVERTER_PV_POWER,
-		},
-		Value:    pf.PVPowerWatt,
-		Decimals: 2,
-	})
+	events.AddFloatSensorUpdateEvent(SENSOR_ID_INVERTER_PV_POWER, pf.PVPowerWatt, 2)
+
 	if hasStorage {
 		// Battery Charge Power
-		events = append(events, domain.FloatSensorUpdateEvent{
-			SensorUpdateEventMixIn: domain.SensorUpdateEventMixIn{
-				Id: SENSOR_ID_BATTERY_CHARGE_POWER,
-			},
-			Value:    pf.BatteryChargePowerWatt,
-			Decimals: 2,
-		})
+		events.AddFloatSensorUpdateEvent(SENSOR_ID_BATTERY_CHARGE_POWER, pf.BatteryChargePowerWatt, 2)
+
 		// Battery Discharge Power
-		events = append(events, domain.FloatSensorUpdateEvent{
-			SensorUpdateEventMixIn: domain.SensorUpdateEventMixIn{
-				Id: SENSOR_ID_BATTERY_DISCHARGE_POWER,
-			},
-			Value:    pf.BatteryDischargePowerWatt,
-			Decimals: 2,
-		})
+		events.AddFloatSensorUpdateEvent(SENSOR_ID_BATTERY_DISCHARGE_POWER, pf.BatteryDischargePowerWatt, 2)
+
 		// Battery Power Flow
-		events = append(events, domain.FloatSensorUpdateEvent{
-			SensorUpdateEventMixIn: domain.SensorUpdateEventMixIn{
-				Id: SENSOR_ID_BATTERY_POWER_FLOW,
-			},
-			Value:    pf.BatteryDCPowerFlowWatt,
-			Decimals: 2,
-		})
+		events.AddFloatSensorUpdateEvent(SENSOR_ID_BATTERY_POWER_FLOW, pf.BatteryDCPowerFlowWatt, 2)
 	}
-
 	return events
 }
 
-func InverterStateToUpdateEvents(is *domain.InverterState) []domain.SensorUpdateEvent {
-	var events []domain.SensorUpdateEvent
+func (events *SensorUpdateEvents) AddInverterStateToUpdateEvents(is *domain.InverterState) *SensorUpdateEvents {
 
-	// Inverter Cabinet Temp
-	events = append(events, domain.FloatSensorUpdateEvent{
-		SensorUpdateEventMixIn: domain.SensorUpdateEventMixIn{
-			Id: SENSOR_ID_INVERTER_CABINET_TEMP,
-		},
-		Value:    is.CabinetTemperature,
-		Decimals: 1,
-	})
+	// Inverter Cabinet Temperature
+	events.AddFloatSensorUpdateEvent(SENSOR_ID_INVERTER_CABINET_TEMP, is.CabinetTemperature, 1)
+
 	// Inverter Operating State
-	events = append(events, domain.TextSensorUpdateEvent{
-		SensorUpdateEventMixIn: domain.SensorUpdateEventMixIn{
-			Id:         SENSOR_ID_INVERTER_OPERATING_STATE,
-			Attributes: boolMapToAnyMap(is.SunspecDeviceEvents.Flags()),
-		},
-		Value: is.OperatingStateStr,
-	})
+	events.AddTextSensorUpdateEventWithAttributes(SENSOR_ID_INVERTER_OPERATING_STATE, is.OperatingStateStr, is.SunspecDeviceEvents.Flags())
 
 	return events
 }
 
-func VendorInverterStateToUpdateEvents(ivs *domain.VendorInverterState) []domain.SensorUpdateEvent {
-	var events []domain.SensorUpdateEvent
+func (events *SensorUpdateEvents) AddVendorInverterStateToUpdateEvents(ivs *domain.VendorInverterState) *SensorUpdateEvents {
 
 	// Inverter Vendor Operating State
-	events = append(events, domain.TextSensorUpdateEvent{
-		SensorUpdateEventMixIn: domain.SensorUpdateEventMixIn{
-			Id:         SENSOR_ID_INVERTER_VENDOR_OPERATING_STATE,
-			Attributes: boolMapToAnyMap(ivs.VendorDeviceEvents.Flags()),
-		},
-		Value: ivs.VendorOperatingStateStr,
-	})
+	events.AddTextSensorUpdateEventWithAttributes(SENSOR_ID_INVERTER_VENDOR_OPERATING_STATE, ivs.VendorOperatingStateStr, ivs.VendorDeviceEvents.Flags())
 
 	return events
 }
 
-func InverterStorageStateToUpdateEvents(is *domain.StorageState) []domain.SensorUpdateEvent {
-	var events []domain.SensorUpdateEvent
+func (events *SensorUpdateEvents) AddInverterStorageStateToUpdateEvents(is *domain.StorageState) *SensorUpdateEvents {
 
 	// Battery SoC
-	events = append(events, domain.FloatSensorUpdateEvent{
-		SensorUpdateEventMixIn: domain.SensorUpdateEventMixIn{
-			Id: SENSOR_ID_BATTERY_SOC,
-		},
-		Value:    is.StateOfCharge,
-		Decimals: 2,
-	})
+	events.AddFloatSensorUpdateEvent(SENSOR_ID_BATTERY_SOC, is.StateOfCharge, 2)
+
 	// Battery Max Capacity
-	events = append(events, domain.FloatSensorUpdateEvent{
-		SensorUpdateEventMixIn: domain.SensorUpdateEventMixIn{
-			Id: SENSOR_ID_BATTERY_MAX_CAPACITY,
-		},
-		Value:    float64(is.MaxCapacityWatt) / 1000,
-		Decimals: 3,
-	})
+	events.AddFloatSensorUpdateEvent(SENSOR_ID_BATTERY_MAX_CAPACITY, float64(is.MaxCapacityWatt)/1000, 3)
+
 	// Battery Current Capacity
-	events = append(events, domain.FloatSensorUpdateEvent{
-		SensorUpdateEventMixIn: domain.SensorUpdateEventMixIn{
-			Id: SENSOR_ID_BATTERY_CURRENT_CAPACITY,
-		},
-		Value:    float64(is.CurrentCapacityWatt) / 1000,
-		Decimals: 3,
-	})
+	events.AddFloatSensorUpdateEvent(SENSOR_ID_BATTERY_CURRENT_CAPACITY, float64(is.CurrentCapacityWatt)/1000, 3)
+
 	// Battery Charge State
-	events = append(events, domain.TextSensorUpdateEvent{
-		SensorUpdateEventMixIn: domain.SensorUpdateEventMixIn{
-			Id: SENSOR_ID_BATTERY_OPERATING_STATE,
-		},
-		Value: is.ChargeStatusStr,
-	})
+	events.AddTextSensorUpdateEvent(SENSOR_ID_BATTERY_OPERATING_STATE, is.ChargeStatusStr)
 
 	return events
 }
 
-func ACMeterPowerFlowToUpdateEvents(pf *domain.ACMeterPowerFlow) []domain.SensorUpdateEvent {
-	var events []domain.SensorUpdateEvent
+func (events *SensorUpdateEvents) AddACMeterPowerFlowToUpdateEvents(pf *domain.ACMeterPowerFlow) *SensorUpdateEvents {
 
 	// ACMeter Power Flow
-	events = append(events, domain.FloatSensorUpdateEvent{
-		SensorUpdateEventMixIn: domain.SensorUpdateEventMixIn{
-			Id: SENSOR_ID_ACMETER_POWER_FLOW,
-		},
-		Value:    pf.CurrentPowerFlowWatt,
-		Decimals: 2,
-	})
+	events.AddFloatSensorUpdateEvent(SENSOR_ID_ACMETER_POWER_FLOW, pf.CurrentPowerFlowWatt, 2)
+
 	// ACMeter Import Power
-	events = append(events, domain.FloatSensorUpdateEvent{
-		SensorUpdateEventMixIn: domain.SensorUpdateEventMixIn{
-			Id: SENSOR_ID_ACMETER_IMPORT_POWER,
-		},
-		Value:    pf.CurrentImportPowerWatt,
-		Decimals: 2,
-	})
+	events.AddFloatSensorUpdateEvent(SENSOR_ID_ACMETER_IMPORT_POWER, pf.CurrentImportPowerWatt, 2)
+
 	// ACMeter Export Power
-	events = append(events, domain.FloatSensorUpdateEvent{
-		SensorUpdateEventMixIn: domain.SensorUpdateEventMixIn{
-			Id: SENSOR_ID_ACMETER_EXPORT_POWER,
-		},
-		Value:    pf.CurrentExportPowerWatt,
-		Decimals: 2,
-	})
+	events.AddFloatSensorUpdateEvent(SENSOR_ID_ACMETER_EXPORT_POWER, pf.CurrentExportPowerWatt, 2)
+
 	// ACMeter Total Import Energy
-	events = append(events, domain.FloatSensorUpdateEvent{
-		SensorUpdateEventMixIn: domain.SensorUpdateEventMixIn{
-			Id: SENSOR_ID_ACMETER_TOTAL_ENERGY_IMPORTED,
-		},
-		Value:    pf.TotalEnergyImportedKWh,
-		Decimals: 3,
-	})
+	events.AddFloatSensorUpdateEvent(SENSOR_ID_ACMETER_TOTAL_ENERGY_IMPORTED, pf.TotalEnergyImportedKWh, 3)
+
 	// ACMeter Total Export Energy
-	events = append(events, domain.FloatSensorUpdateEvent{
-		SensorUpdateEventMixIn: domain.SensorUpdateEventMixIn{
-			Id: SENSOR_ID_ACMETER_TOTAL_ENERGY_EXPORTED,
-		},
-		Value:    pf.TotalEnergyExportedKWh,
-		Decimals: 3,
-	})
+	events.AddFloatSensorUpdateEvent(SENSOR_ID_ACMETER_TOTAL_ENERGY_EXPORTED, pf.TotalEnergyExportedKWh, 3)
+
 	// ACMeter Grid Frequency
-	events = append(events, domain.FloatSensorUpdateEvent{
-		SensorUpdateEventMixIn: domain.SensorUpdateEventMixIn{
-			Id: SENSOR_ID_ACMETER_GRID_FREQUENCY,
-		},
-		Value:    pf.Frequency,
-		Decimals: 1,
-	})
+	events.AddFloatSensorUpdateEvent(SENSOR_ID_ACMETER_GRID_FREQUENCY, pf.Frequency, 1)
+
 	// ACMeter Grid Voltage
-	events = append(events, domain.FloatSensorUpdateEvent{
-		SensorUpdateEventMixIn: domain.SensorUpdateEventMixIn{
-			Id: SENSOR_ID_ACMETER_GRID_VOLTAGE,
-		},
-		Value:    pf.PhaseAVoltage,
-		Decimals: 2,
-	})
+	events.AddFloatSensorUpdateEvent(SENSOR_ID_ACMETER_GRID_VOLTAGE, pf.PhaseAVoltage, 2)
 
 	return events
 }
 
-func HousePowerUpdateEvents(invPf *domain.InverterPowerFlow, acMeterPf *domain.ACMeterPowerFlow) []domain.SensorUpdateEvent {
-	var events []domain.SensorUpdateEvent
+func (events *SensorUpdateEvents) AddHousePowerUpdateEvents(invPf *domain.InverterPowerFlow, acMeterPf *domain.ACMeterPowerFlow) *SensorUpdateEvents {
+
 	var acMeterPower float64 = 0
 	if acMeterPf != nil {
 		acMeterPower = acMeterPf.CurrentPowerFlowWatt
 	}
 	if invPf != nil {
-		events = append(events, domain.FloatSensorUpdateEvent{
-			SensorUpdateEventMixIn: domain.SensorUpdateEventMixIn{
-				Id: SENSOR_ID_HOUSE_POWER,
-			},
-			Value:    invPf.ACPowerWatt + acMeterPower,
-			Decimals: 2,
-		})
+		events.AddFloatSensorUpdateEvent(SENSOR_ID_HOUSE_POWER, invPf.ACPowerWatt+acMeterPower, 2)
 	}
+
 	return events
 }
 
-func BatteryControlSwitchesUpdateEvents(controlHold, controlCharge bool) []domain.SensorUpdateEvent {
-	var events []domain.SensorUpdateEvent
-	events = append(events, BatteryControlHoldSwitchUpdateEvents(controlHold))
-	events = append(events, BatteryControlChargeSwitchUpdateEvents(controlCharge))
+func (events *SensorUpdateEvents) AddBatteryControlHoldSwitchUpdateEvent(controlHold bool) *SensorUpdateEvents {
+	events.AddSwitchSensorUpdateEvent(SWITCH_ID_BATTERY_HOLD, controlHold)
+
 	return events
 }
 
-func BatteryControlHoldSwitchUpdateEvents(controlHold bool) domain.SensorUpdateEvent {
-	return domain.SwitchSensorUpdateEvent{
-		SensorUpdateEventMixIn: domain.SensorUpdateEventMixIn{
-			Id: SWITCH_ID_BATTERY_HOLD,
-		},
-		Value: controlHold,
-	}
-}
+func (events *SensorUpdateEvents) AddBatteryControlChargeSwitchUpdateEvent(controlCharge bool) *SensorUpdateEvents {
+	events.AddSwitchSensorUpdateEvent(SWITCH_ID_BATTERY_CHARGE, controlCharge)
 
-func BatteryControlChargeSwitchUpdateEvents(controlCharge bool) domain.SensorUpdateEvent {
-	return domain.SwitchSensorUpdateEvent{
-		SensorUpdateEventMixIn: domain.SensorUpdateEventMixIn{
-			Id: SWITCH_ID_BATTERY_CHARGE,
-		},
-		Value: controlCharge,
-	}
-}
-
-func BatteryControlSetTargetSoCUpdateEvents(value uint8) []domain.SensorUpdateEvent {
-	var events []domain.SensorUpdateEvent
-	events = append(events, domain.InputNumberSensorUpdateEvent{
-		SensorUpdateEventMixIn: domain.SensorUpdateEventMixIn{
-			Id: INPUT_NUMBER_ID_BATTERY_CHARGE_TARGET_SOC,
-		},
-		Value: float64(value),
-	})
 	return events
 }
 
-func boolMapToAnyMap(in map[string]bool) map[string]any {
-	out := make(map[string]any, len(in))
-	for k, v := range in {
-		out[k] = v
+func (events *SensorUpdateEvents) AddBatteryControlSetTargetSoCUpdateEvents(value uint8) *SensorUpdateEvents {
+	events.AddInputNumberSensorUpdateEvent(INPUT_NUMBER_ID_BATTERY_CHARGE_TARGET_SOC, float64(value))
+
+	return events
+}
+
+func (events *SensorUpdateEvents) Sensors() []domain.SensorUpdateEvent {
+	return events.Build()
+}
+
+func (events *SensorUpdateEvents) ForEach(fn func(event domain.SensorUpdateEvent)) {
+	for _, event := range events.Build() {
+		fn(event)
 	}
-	return out
 }
