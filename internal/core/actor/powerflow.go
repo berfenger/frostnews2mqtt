@@ -177,7 +177,7 @@ func (state *PowerFlowActor) WaitingPFReceive(ctx actor.Context) {
 			}
 		}
 		// House power
-		if state.config.MonitorConfig.TrackHousePower && msg.Inverter != nil && msg.ACMeter != nil {
+		if state.config.MonitorConfig.TrackHousePower && msg.Inverter != nil {
 			evs := component.HousePowerUpdateEvents(msg.Inverter, msg.ACMeter)
 			for _, ev := range evs {
 				state.sendEventToMQTT(ctx, ev)

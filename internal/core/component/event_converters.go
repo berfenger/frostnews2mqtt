@@ -215,12 +215,16 @@ func ACMeterPowerFlowToUpdateEvents(pf *domain.ACMeterPowerFlow) []domain.Sensor
 
 func HousePowerUpdateEvents(invPf *domain.InverterPowerFlow, acMeterPf *domain.ACMeterPowerFlow) []domain.SensorUpdateEvent {
 	var events []domain.SensorUpdateEvent
-	if invPf != nil && acMeterPf != nil {
+	var acMeterPower float64 = 0
+	if acMeterPf != nil {
+		acMeterPower = acMeterPf.CurrentPowerFlowWatt
+	}
+	if invPf != nil {
 		events = append(events, domain.FloatSensorUpdateEvent{
 			SensorUpdateEventMixIn: domain.SensorUpdateEventMixIn{
 				Id: SENSOR_ID_HOUSE_POWER,
 			},
-			Value:    invPf.ACPowerWatt + acMeterPf.CurrentPowerFlowWatt,
+			Value:    invPf.ACPowerWatt + acMeterPower,
 			Decimals: 2,
 		})
 	}
