@@ -41,6 +41,7 @@ const (
 	STATE_CLASS_DURATION                      = "duration"
 	STATE_CLASS_MEASUREMENT                   = "measurement"
 	STATE_CLASS_TOTAL_INCREASING              = "total_increasing"
+	STATE_CLASS_TOTAL                         = "total"
 	DEVICE_CLASS_BATTERY                      = "battery"
 	DEVICE_CLASS_CURRENT                      = "current"
 	DEVICE_CLASS_ENERGY                       = "energy"
@@ -216,8 +217,8 @@ func InverterStorageSensors(inverterDevice domain.Device) []domain.GenericSensor
 		Id:                SENSOR_ID_BATTERY_MAX_CAPACITY,
 		SensorType:        "sensor",
 		Name:              "Battery max capacity",
-		StateClass:        STATE_CLASS_MEASUREMENT,
-		DeviceClass:       DEVICE_CLASS_ENERGY,
+		StateClass:        STATE_CLASS_TOTAL,
+		DeviceClass:       DEVICE_CLASS_ENERGY_STORAGE,
 		UnitOfMeasurement: "kWh",
 		UniqueId:          uniqueId(inverterDevice.Id, SENSOR_ID_BATTERY_MAX_CAPACITY),
 	})
@@ -228,8 +229,8 @@ func InverterStorageSensors(inverterDevice domain.Device) []domain.GenericSensor
 		Id:                SENSOR_ID_BATTERY_CURRENT_CAPACITY,
 		SensorType:        "sensor",
 		Name:              "Battery current capacity",
-		StateClass:        STATE_CLASS_MEASUREMENT,
-		DeviceClass:       DEVICE_CLASS_ENERGY,
+		StateClass:        STATE_CLASS_TOTAL,
+		DeviceClass:       DEVICE_CLASS_ENERGY_STORAGE,
 		UnitOfMeasurement: "kWh",
 		UniqueId:          uniqueId(inverterDevice.Id, SENSOR_ID_BATTERY_CURRENT_CAPACITY),
 	})
