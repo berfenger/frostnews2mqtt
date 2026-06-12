@@ -204,7 +204,7 @@ func (state *MasterOfPuppetsActor) HealthCheckReceive(ctx actor.Context) {
 
 func (state *MasterOfPuppetsActor) startModbusActor(ctx actor.Context) (*actor.PID, error) {
 
-	supervisor := actor.NewExponentialBackoffStrategy(5*time.Second, 1*time.Second)
+	supervisor := actorutil.NewRestartAfterDelayStrategy(5*time.Second, 0)
 
 	modbusActor := &adactor.MasterModbusActor{
 		ActorProv: func() *adactor.ModbusActor {
@@ -262,7 +262,7 @@ func (state *MasterOfPuppetsActor) startHADiscoveryActor(ctx actor.Context) (*ac
 
 func (state *MasterOfPuppetsActor) startMQTTActor(ctx actor.Context) (*actor.PID, error) {
 
-	supervisor := actor.NewExponentialBackoffStrategy(5*time.Second, 10*time.Second)
+	supervisor := actorutil.NewRestartAfterDelayStrategy(5*time.Second, 0)
 
 	mqttActor := &adactor.MasterMQTTActor{
 		ActorProv: func() *adactor.MQTTActor {

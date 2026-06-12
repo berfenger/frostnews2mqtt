@@ -1,8 +1,12 @@
 package modbus
 
 import (
+	"errors"
 	"fmt"
+	"io"
+	"net"
 	"slices"
+	"syscall"
 	"time"
 
 	"github.com/simonvetter/modbus"
@@ -109,3 +113,101 @@ func (reader ModbusReaderWriterClient) Close() (err error) {
 
 // ensure interface compliance
 var _ ModbusReaderWriter = (*ModbusReaderWriterClient)(nil)
+
+type AutoReconnectModbusReaderWriterClient struct {
+	*ModbusReaderWriterClient
+	logger *zap.Logger
+}
+
+func NewAutoReconnectModbusTCPReaderWriterClient(deviceName string, ip string, port uint, unitId uint8, timeout time.Duration,
+	logger *zap.Logger, instrumentations []ModbusInstrumentation) (ModbusReaderWriter, error) {
+
+	baseClient, err := NewModbusTCPReaderWriterClient(deviceName, ip, port, unitId, timeout, logger, instrumentations)
+	if err != nil {
+		return nil, err
+	}
+
+	return &AutoReconnectModbusReaderWriterClient{
+		ModbusReaderWriterClient: baseClient.(*ModbusReaderWriterClient),
+		logger:                   logger,
+	}, nil
+}
+
+func isBrokenPipe(err error) bool {
+	if err == nil {
+		return false
+	}
+	return errors.Is(err, syscall.EPIPE) ||
+		errors.Is(err, net.ErrClosed) ||
+		errors.Is(err, syscall.ECONNRESET) ||
+		errors.Is(err, io.EOF) ||
+		err.Error() == "read: connection reset by peer" ||
+		err.Error() == "write: broken pipe" ||
+		err.Error() == "EOF"
+}
+
+func (r *AutoReconnectModbusReaderWriterClient) reconnectAndRetry(operation func() error) error {
+	err := operation()
+	if err != nil && isBrokenPipe(err) {
+		r.logger.Warn("broken connection detected, attempting reconnection")
+		//nolint errcheck
+		r.client.Close()
+		if reopenErr := r.client.Open(); reopenErr != nil {
+			r.logger.Error("error reopening connection", zap.Error(reopenErr))
+			return err
+		}
+		return operation()
+	}
+	return err
+}
+
+func (r *AutoReconnectModbusReaderWriterClient) ReadRegister(addr uint16, regType RegType) (result uint16, err error) {
+	err = r.reconnectAndRetry(func() error {
+		var e error
+		result, e = r.ModbusReaderWriterClient.ReadRegister(addr, regType)
+		return e
+	})
+	return
+}
+
+func (r *AutoReconnectModbusReaderWriterClient) ReadRegisters(addr uint16, quantity uint16, regType RegType) (result []uint16, err error) {
+	err = r.reconnectAndRetry(func() error {
+		var e error
+		result, e = r.ModbusReaderWriterClient.ReadRegisters(addr, quantity, regType)
+		return e
+	})
+	return
+}
+
+func (r *AutoReconnectModbusReaderWriterClient) ReadUint32(addr uint16, regType RegType) (result uint32, err error) {
+	err = r.reconnectAndRetry(func() error {
+		var e error
+		result, e = r.ModbusReaderWriterClient.ReadUint32(addr, regType)
+		return e
+	})
+	return
+}
+
+func (r *AutoReconnectModbusReaderWriterClient) ReadRawBytes(addr uint16, quantity uint16, regType RegType) (result []byte, err error) {
+	err = r.reconnectAndRetry(func() error {
+		var e error
+		result, e = r.ModbusReaderWriterClient.ReadRawBytes(addr, quantity, regType)
+		return e
+	})
+	return
+}
+
+func (r *AutoReconnectModbusReaderWriterClient) WriteRegister(addr uint16, value uint16) error {
+	return r.reconnectAndRetry(func() error {
+		return r.ModbusReaderWriterClient.WriteRegister(addr, value)
+	})
+}
+
+func (r *AutoReconnectModbusReaderWriterClient) WriteRegisters(addr uint16, values []uint16) error {
+	return r.reconnectAndRetry(func() error {
+		return r.ModbusReaderWriterClient.WriteRegisters(addr, values)
+	})
+}
+
+// ensure interface compliance
+var _ ModbusReaderWriter = (*AutoReconnectModbusReaderWriterClient)(nil)

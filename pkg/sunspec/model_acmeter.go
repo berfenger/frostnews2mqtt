@@ -66,3 +66,7 @@ func (data *ACMeterModelData) GetPhaseCVoltage() float64 {
 	phaseAVoltage_SF := data.readRegister(13)
 	return applySF(phaseAVoltage, phaseAVoltage_SF)
 }
+
+func (data *ACMeterModelData) Events() uint32 {
+	return data.readUint32(103)
+}

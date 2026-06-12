@@ -163,6 +163,8 @@ func (state *PowerFlowActor) WaitingPFReceive(ctx actor.Context) {
 		// ACMeter power flow
 		if msg.ACMeter != nil {
 			events.AddACMeterPowerFlowToUpdateEvents(msg.ACMeter)
+		} else if msg.Inverter != nil {
+			events.AddDisconnectedACMeterPowerFlowToUpdateEvents()
 		}
 		// House power
 		if state.config.MonitorConfig.TrackHousePower && msg.Inverter != nil {

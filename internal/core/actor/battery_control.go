@@ -387,7 +387,9 @@ func (state BCChargingState) OnEnter(ctx actor.Context) BCChargingState {
 
 func (state BCChargingState) OnEnterAction(ctx actor.Context) BCChargingState {
 	state.OnEnter(ctx)
-	state.sendStorageControl(ctx)
+	state.actor.BecomeStacked(BCAwaitPowerFlowResponseState{
+		actor: state.actor,
+	}.OnEnterAction(ctx))
 	return state
 }
 

@@ -22,7 +22,7 @@ func NewSunspecInverterClient(ctx context.Context, ip string, port uint, inverte
 	instrumentations []modbus.ModbusInstrumentation) (*GenericInverterClient, error) {
 
 	// create modbus client
-	client, err := modbus.NewModbusTCPReaderWriterClient("inverter", ip, port, inverterAddress, timeout, logutil.FromContext(ctx), instrumentations)
+	client, err := modbus.NewAutoReconnectModbusTCPReaderWriterClient("inverter", ip, port, inverterAddress, timeout, logutil.FromContext(ctx), instrumentations)
 	if err != nil {
 		return nil, err
 	}

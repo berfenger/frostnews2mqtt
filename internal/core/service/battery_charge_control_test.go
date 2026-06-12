@@ -62,6 +62,14 @@ func TestDontStartWhenTargetSoCIsMet(t *testing.T) {
 	require.True(r.Exit, "must exit when target SoC is met")
 }
 
+func TestDontStartWhenTargetSoCIsMet2(t *testing.T) {
+
+	require := require.New(t)
+
+	r := callControllerAndCheckPower(require, ctrl, ss(80, BATTERY_MAX_CAP), pf(2000, 570, 0), -1, 70)
+	require.True(r.Exit, "must exit when target SoC is met")
+}
+
 func TestEnsureChargePowerGTEPVPower(t *testing.T) {
 
 	require := require.New(t)

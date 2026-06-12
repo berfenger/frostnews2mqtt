@@ -2,6 +2,7 @@ package device
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/berfenger/frostnews2mqtt/pkg/modbus"
 	"github.com/berfenger/frostnews2mqtt/pkg/sunspec"
 	"github.com/berfenger/frostnews2mqtt/pkg/util/logutil"
+	"go.uber.org/zap"
 )
 
 type GenericACMeterClient struct {
@@ -22,7 +24,7 @@ func NewACMeterClient(ctx context.Context, ip string, port uint, acMeterAddress 
 	timeout time.Duration, instrumentations []modbus.ModbusInstrumentation) (domain.ACMeterModbusReader, error) {
 
 	// create modbus client
-	client, err := modbus.NewModbusTCPReaderWriterClient("acMeter", ip, port, acMeterAddress, timeout, logutil.FromContext(ctx), instrumentations)
+	client, err := modbus.NewAutoReconnectModbusTCPReaderWriterClient("acMeter", ip, port, acMeterAddress, timeout, logutil.FromContext(ctx), instrumentations)
 	if err != nil {
 		return nil, err
 	}
@@ -81,6 +83,10 @@ func (acMeter GenericACMeterClient) GetCurrentPowerFlowWatt() (float64, error) {
 	if err != nil {
 		return 0, err
 	}
+	if data.Events() != 0 {
+		logutil.FromContext(acMeter.ctx).Warn("AC Meter reported events %s", zap.String("events", fmt.Sprintf("%X", data.Events())))
+		return 0, fmt.Errorf("invalid ac meter read: %X", data.Events())
+	}
 	return data.GetCurrentPowerFlowWatt(), nil
 }
 
@@ -88,6 +94,10 @@ func (acMeter GenericACMeterClient) GetPowerFlow() (*domain.ACMeterPowerFlow, er
 	data, err := acMeter.device.ReadACMeterModel()
 	if err != nil {
 		return nil, err
+	}
+	if data.Events() != 0 {
+		logutil.FromContext(acMeter.ctx).Warn("AC Meter reported events %s", zap.String("events", fmt.Sprintf("%X", data.Events())))
+		return nil, fmt.Errorf("invalid ac meter read: %X", data.Events())
 	}
 	totalRealPower := data.GetCurrentPowerFlowWatt()
 	totalEnergyExported := data.GetTotalEnergyExported()

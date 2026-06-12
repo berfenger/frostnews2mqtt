@@ -108,6 +108,26 @@ func (events *SensorUpdateEvents) AddACMeterPowerFlowToUpdateEvents(pf *domain.A
 	return events
 }
 
+func (events *SensorUpdateEvents) AddDisconnectedACMeterPowerFlowToUpdateEvents() *SensorUpdateEvents {
+
+	// ACMeter Power Flow
+	events.AddFloatSensorUpdateEvent(SENSOR_ID_ACMETER_POWER_FLOW, 0, 2)
+
+	// ACMeter Import Power
+	events.AddFloatSensorUpdateEvent(SENSOR_ID_ACMETER_IMPORT_POWER, 0, 2)
+
+	// ACMeter Export Power
+	events.AddFloatSensorUpdateEvent(SENSOR_ID_ACMETER_EXPORT_POWER, 0, 2)
+
+	// ACMeter Grid Frequency
+	events.AddFloatSensorUpdateEvent(SENSOR_ID_ACMETER_GRID_FREQUENCY, 0, 1)
+
+	// ACMeter Grid Voltage
+	events.AddFloatSensorUpdateEvent(SENSOR_ID_ACMETER_GRID_VOLTAGE, 0, 2)
+
+	return events
+}
+
 func (events *SensorUpdateEvents) AddHousePowerUpdateEvents(invPf *domain.InverterPowerFlow, acMeterPf *domain.ACMeterPowerFlow) *SensorUpdateEvents {
 
 	var acMeterPower float64 = 0
